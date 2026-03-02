@@ -3,20 +3,21 @@
 	import { onMount } from 'svelte';
 	import { Chart, registerables } from 'chart.js';
 	import Card from '$lib/components/Card.svelte';
-	import ListCard from '$lib/components/ListCard.svelte';
 	import MetricCard from '$lib/components/MetricCard.svelte';
 	import TableCard from '$lib/components/TableCard.svelte';
-	import { selectedWeek } from '$lib/stores/dateRange';
+	import { selectedBaseDate, selectedWeek } from '$lib/stores/dateRange';
 	import DrugSelect from '$lib/components/DrugSelect.svelte';
 
 	export let data: PageData;
 
 	const { summary, orders, drugOptions, hospitalId, defaultDrugId } = data;
-	const recentOrderColumns = [
-		{ id: 'id', label: '주문' },
-		{ id: 'item', label: '품목' },
-		{ id: 'status', label: '상태' },
-		{ id: 'eta', label: '도착 예정' }
+	const allDrugOptions = drugOptions;
+	const stockOrderColumns = [
+		{ id: 'item', label: '약품' },
+		{ id: 'currentStock', label: '현재' },
+		{ id: 'orderedQty', label: '주문' },
+		{ id: 'orderedAt', label: '주문일' },
+		{ id: 'cartAction', label: '장바구니에 넣기', type: 'action' as const }
 	];
 
 	let activityCanvas: HTMLCanvasElement | null = null;
@@ -26,9 +27,12 @@
 	let lineChartReady = false;
 	let selectedDrugId = defaultDrugId;
 	let lastFetchKey = '';
+	let lastOptionFetchKey = '';
 	let hasLineData = true;
 	let noDataLabel = '';
-	$: selectedDrug = drugOptions.find((drug) => drug.id === selectedDrugId);
+	let filteredDrugOptions = allDrugOptions;
+	$: selectedDrug = filteredDrugOptions.find((drug) => drug.id === selectedDrugId);
+	$: baseDateKey = toDateKey($selectedBaseDate);
 
 	const toDateKey = (date: Date) => {
 		const year = date.getFullYear();
@@ -41,6 +45,9 @@
 		const [, month, day] = dateKey.split('-');
 		return `${month}/${day}`;
 	};
+
+	const getLineFetchKey = (selectedBaseDateKey: string) =>
+		`${selectedDrugId}-${toDateKey($selectedWeek.start)}-${toDateKey($selectedWeek.end)}-${selectedBaseDateKey}`;
 
 	const updateLineChart = (payload: {
 		labels: string[];
@@ -59,13 +66,14 @@
 	};
 
 	const fetchLineData = async () => {
-		if (!selectedDrugId) return;
+		if (!selectedDrugId) {
+			hasLineData = false;
+			noDataLabel = '선택 가능한 약품이 없습니다.';
+			return;
+		}
 		const start = $selectedWeek.start;
 		const end = $selectedWeek.end;
-		const today = new Date();
-		const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-		const actualEnd = new Date(todayDate);
-		actualEnd.setDate(actualEnd.getDate() - 1);
+		const actualEnd = new Date($selectedBaseDate);
 
 		const params = new URLSearchParams({
 			hospitalId,
@@ -88,6 +96,30 @@
 				? `${selectedDrug.name} (${selectedDrug.id})`
 				: selectedDrugId;
 		updateLineChart(payload);
+	};
+
+	const fetchAvailableDrugOptions = async () => {
+		const start = $selectedWeek.start;
+		const end = $selectedWeek.end;
+		const params = new URLSearchParams({
+			hospitalId,
+			start: toDateKey(start),
+			end: toDateKey(end)
+		});
+		const response = await fetch(`/api/usage-forecast/drug-options?${params.toString()}`);
+
+		if (!response.ok) {
+			filteredDrugOptions = allDrugOptions;
+			return;
+		}
+
+		const payload = await response.json();
+		const availableDrugIds = new Set<string>(payload.drugIds ?? []);
+		filteredDrugOptions = allDrugOptions.filter((option) => availableDrugIds.has(option.id));
+
+		if (!filteredDrugOptions.some((option) => option.id === selectedDrugId)) {
+			selectedDrugId = filteredDrugOptions[0]?.id ?? '';
+		}
 	};
 
 	onMount(() => {
@@ -179,11 +211,17 @@
 					}
 				}
 			});
-			lineChartReady = true;
-			lastFetchKey = `${selectedDrugId}-${toDateKey($selectedWeek.start)}-${toDateKey(
-				$selectedWeek.end
-			)}`;
-			fetchLineData();
+			lastOptionFetchKey = `${toDateKey($selectedWeek.start)}-${toDateKey($selectedWeek.end)}`;
+			fetchAvailableDrugOptions().then(() => {
+				lineChartReady = true;
+				lastFetchKey = getLineFetchKey(baseDateKey);
+				if (selectedDrugId) {
+					fetchLineData();
+				} else {
+					hasLineData = false;
+					noDataLabel = '선택 가능한 약품이 없습니다.';
+				}
+			});
 		}
 
 		return () => {
@@ -193,12 +231,18 @@
 	});
 
 	$: if (lineChartReady && selectedDrugId) {
-		const nextKey = `${selectedDrugId}-${toDateKey($selectedWeek.start)}-${toDateKey(
-			$selectedWeek.end
-		)}`;
+		const nextKey = getLineFetchKey(baseDateKey);
 		if (nextKey !== lastFetchKey) {
 			lastFetchKey = nextKey;
 			fetchLineData();
+		}
+	}
+
+	$: if (lineChartReady) {
+		const nextOptionsKey = `${toDateKey($selectedWeek.start)}-${toDateKey($selectedWeek.end)}`;
+		if (nextOptionsKey !== lastOptionFetchKey) {
+			lastOptionFetchKey = nextOptionsKey;
+			fetchAvailableDrugOptions();
 		}
 	}
 </script>
@@ -208,10 +252,10 @@
 		{#if index === summary.metrics.length - 1}
 			<div class="card metric-card">
 				<div class="muted">약품 선택</div>
-				<DrugSelect options={drugOptions} bind:value={selectedDrugId} />
+				<DrugSelect options={filteredDrugOptions} bind:value={selectedDrugId} />
 			</div>
 		{:else}
-			<MetricCard label={metric.label} value={metric.value} delta={metric.delta} />
+			<MetricCard label={metric.label} value={metric.value} delta={metric.delta} status={metric.status} />
 		{/if}
 	{/each}
 </section>
@@ -232,13 +276,31 @@
 	</Card>
 </section>
 
-<section class="grid-2">
-	<ListCard
+<section class="stock-monitoring">
+	<TableCard
 		title="재고 모니터링"
-		items={summary.inventory}
-		getLabel={(item) => item.item}
-		getValue={(item) => item.value}
-		tone={(_, item) => item.status}
+		subtitle="현재 재고가 낮은 순 상위 10개 약품의 재고/주문 현황"
+		columns={stockOrderColumns}
+		rows={orders}
 	/>
-	<TableCard title="최근 주문" columns={recentOrderColumns} rows={orders} />
 </section>
+
+<style>
+	.stock-monitoring :global(.table th) {
+		text-align: center;
+	}
+
+	.stock-monitoring :global(.table th:first-child),
+	.stock-monitoring :global(.table td:first-child) {
+		max-width: 495px;
+		width: 495px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.stock-monitoring :global(.table-action-btn) {
+		display: block;
+		margin: 0 auto;
+	}
+</style>

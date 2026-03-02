@@ -54,8 +54,7 @@
 	onMount(() => {
 		locale = navigator.language || 'ko-KR';
 		today = new Date();
-		currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-		setSelectedWeek(today);
+		currentMonth = new Date($selectedWeek.start.getFullYear(), $selectedWeek.start.getMonth(), 1);
 
 		const handleClick = (event: MouseEvent) => {
 			const target = event.target as Node;

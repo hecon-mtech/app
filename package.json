@@ -14,10 +14,12 @@
 		"seed:atc-codes": "tsx script/seed/seed-atc-codes.ts",
 		"seed:hospitals": "tsx script/seed/seed-hospitals.ts",
 		"seed:lavar": "tsx script/seed/seed-lavar.ts",
-		"seed:all": "npm run seed:hospitals && npm run seed:drugs && npm run seed:atc-codes && npm run seed:lavar",
+		"seed:operations": "tsx script/seed/seed-operations.ts",
+		"seed:all": "npm run seed:hospitals && npm run seed:atc-codes && npm run seed:drugs && npm run seed:lavar && npm run seed:operations",
 		"seed": "npm run seed:all",
 		"db:generate": "drizzle-kit generate",
-		"db:migrate": "drizzle-kit migrate"
+		"db:migrate": "drizzle-kit migrate",
+		"db:push": "drizzle-kit push"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-auto": "^7.0.0",

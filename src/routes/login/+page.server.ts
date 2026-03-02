@@ -43,13 +43,13 @@ export const actions: Actions = {
 				.where(eq(hospitals.id, id));
 		}
 
-		const token = createSessionToken({ id: hospital.id, name: hospital.name });
+		const token = createSessionToken({ sub: hospital.id, name: hospital.name });
 		cookies.set('session', token, {
 			path: '/',
 			httpOnly: true,
 			sameSite: 'strict',
 			secure: process.env.NODE_ENV === 'production',
-			maxAge: 60 * 60 * 12
+			maxAge: 60 * 60 * 6
 		});
 
 		throw redirect(303, '/dashboard');

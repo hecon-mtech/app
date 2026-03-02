@@ -13,10 +13,13 @@ const getWeekRange = (date: Date): DateRange => {
 	return { start, end };
 };
 
-const selectedWeek = writable<DateRange>(getWeekRange(new Date()));
+const defaultBaseDate = new Date('2024-02-24');
+const selectedWeek = writable<DateRange>(getWeekRange(defaultBaseDate));
+const selectedBaseDate = writable<Date>(new Date(defaultBaseDate));
 
 const setSelectedWeek = (date: Date) => {
 	selectedWeek.set(getWeekRange(date));
+	selectedBaseDate.set(new Date(date.getFullYear(), date.getMonth(), date.getDate()));
 };
 
-export { selectedWeek, setSelectedWeek, getWeekRange };
+export { selectedWeek, selectedBaseDate, setSelectedWeek, getWeekRange };

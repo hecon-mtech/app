@@ -5,19 +5,16 @@
 	import { page } from '$app/state';
 
 	const navItems = [
-		{ label: '홈', href: '/' },
 		{ label: '대시보드', href: '/dashboard' },
 		{ label: '데이터 입력', href: '/data-input' },
 		{ label: '주문', href: '/order' },
-		{ label: '설정', href: '/settings' },
-		{ label: '로그인', href: '/login' }
+		{ label: '설정', href: '/settings' }
 	];
 
 	let { children } = $props();
 
 	const isActive = (href: string) => {
 		const path = page.url.pathname;
-		if (href === '/') return path === '/';
 		return path.startsWith(href);
 	};
 
@@ -61,6 +58,9 @@
 				<div class="topbar-actions">
 					<DatePicker />
 					<div class="chip">관리자</div>
+					<form method="POST" action="/logout">
+						<button type="submit" class="topbar-logout">Log out</button>
+					</form>
 				</div>
 			</header>
 

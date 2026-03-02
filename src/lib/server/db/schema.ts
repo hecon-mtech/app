@@ -1,4 +1,4 @@
-import { date, numeric, pgTable, serial, text } from 'drizzle-orm/pg-core';
+import { date, numeric, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 
 export const drugs = pgTable('drugs', {
 	fdaClass: text('fda_class').notNull(),
@@ -49,4 +49,81 @@ export const supplyPredictions = pgTable('supply_predictions', {
 	lower: numeric('lower').notNull(),
 	time: date('time', { mode: 'date' }).notNull(),
 	model: text('model').notNull()
+});
+
+export const stockBalances = pgTable('stock_balances', {
+	id: serial('id').primaryKey(),
+	hospitalId: text('hospital_id')
+		.references(() => hospitals.id)
+		.notNull(),
+	drugId: text('drug_id')
+		.references(() => atcCodes.id)
+		.notNull(),
+	onHand: numeric('on_hand').notNull(),
+	reserved: numeric('reserved').notNull(),
+	reorderPoint: numeric('reorder_point').notNull(),
+	reorderQty: numeric('reorder_qty').notNull(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull()
+});
+
+export const stockMovements = pgTable('stock_movements', {
+	id: serial('id').primaryKey(),
+	hospitalId: text('hospital_id')
+		.references(() => hospitals.id)
+		.notNull(),
+	drugId: text('drug_id')
+		.references(() => atcCodes.id)
+		.notNull(),
+	movementType: text('movement_type').notNull(),
+	quantity: numeric('quantity').notNull(),
+	refType: text('ref_type'),
+	refId: text('ref_id'),
+	note: text('note'),
+	occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull()
+});
+
+export const purchaseOrders = pgTable('purchase_orders', {
+	id: text('id').primaryKey(),
+	hospitalId: text('hospital_id')
+		.references(() => hospitals.id)
+		.notNull(),
+	supplierName: text('supplier_name').notNull(),
+	status: text('status').notNull(),
+	orderedAt: timestamp('ordered_at', { withTimezone: true }),
+	expectedAt: timestamp('expected_at', { withTimezone: true }),
+	note: text('note')
+});
+
+export const purchaseOrderItems = pgTable('purchase_order_items', {
+	id: serial('id').primaryKey(),
+	poId: text('po_id')
+		.references(() => purchaseOrders.id)
+		.notNull(),
+	drugId: text('drug_id')
+		.references(() => atcCodes.id)
+		.notNull(),
+	orderedQty: numeric('ordered_qty').notNull(),
+	receivedQty: numeric('received_qty').notNull(),
+	unitPrice: numeric('unit_price')
+});
+
+export const goodsReceipts = pgTable('goods_receipts', {
+	id: text('id').primaryKey(),
+	poId: text('po_id').references(() => purchaseOrders.id),
+	hospitalId: text('hospital_id')
+		.references(() => hospitals.id)
+		.notNull(),
+	receivedAt: timestamp('received_at', { withTimezone: true }).notNull(),
+	status: text('status').notNull()
+});
+
+export const goodsReceiptItems = pgTable('goods_receipt_items', {
+	id: serial('id').primaryKey(),
+	grnId: text('grn_id')
+		.references(() => goodsReceipts.id)
+		.notNull(),
+	drugId: text('drug_id')
+		.references(() => atcCodes.id)
+		.notNull(),
+	quantity: numeric('quantity').notNull()
 });

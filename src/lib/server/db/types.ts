@@ -25,10 +25,9 @@ export type DashboardSummary = {
 };
 
 export type OrderItem = {
-	id: string;
-	patient: string;
 	item: string;
-	status: '대기' | '배송 중' | '도착 완료' | '보류';
-	eta: string;
-	priority: '일반' | '높음' | '긴급';
+	currentStock: string;
+	orderedQty: string;
+	orderedAt: string;
+	cartAction: string;
 };

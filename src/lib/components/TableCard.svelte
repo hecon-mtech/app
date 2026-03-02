@@ -6,7 +6,7 @@
 	export let columns: Array<{
 		id: string;
 		label: string;
-		type?: 'text' | 'status';
+		type?: 'text' | 'status' | 'action';
 	}> = [];
 	export let rows: Array<Record<string, string | number>> = [];
 </script>
@@ -28,6 +28,8 @@
 							<td>
 								{#if column.type === 'status'}
 									<span class={`status ${row.status}`}>{row[column.id]}</span>
+								{:else if column.type === 'action'}
+									<button type="button" class="table-action-btn">{row[column.id]}</button>
 								{:else}
 									{row[column.id]}
 								{/if}

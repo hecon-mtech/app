@@ -49,7 +49,7 @@ const rows = records
 		atcName: String(row[6] ?? '').trim(),
 		atc5: toAtc5(String(row[5] ?? '').trim())
 	}))
-	.filter((row) => row.drugCode.length > 0);
+	.filter((row) => row.drugCode.length > 0 && row.atc5.length === 5);
 
 const chunkSize = 1000;
 let inserted = 0;
