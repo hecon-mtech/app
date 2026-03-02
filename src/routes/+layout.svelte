@@ -35,10 +35,7 @@
 	<div class="app-shell">
 		<aside class="sidebar glass">
 			<div class="brand">
-				<div class="brand-badge">H</div>
-				<div>
-					<div>MTECH</div>
-				</div>
+				<img src="/company_logo.png" alt="MTECH" class="brand-logo" />
 			</div>
 
 			<nav class="nav">

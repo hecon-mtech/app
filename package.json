@@ -15,7 +15,8 @@
 		"seed:hospitals": "tsx script/seed/seed-hospitals.ts",
 		"seed:lavar": "tsx script/seed/seed-lavar.ts",
 		"seed:operations": "tsx script/seed/seed-operations.ts",
-		"seed:all": "npm run seed:hospitals && npm run seed:atc-codes && npm run seed:drugs && npm run seed:lavar && npm run seed:operations",
+		"seed:patients": "tsx script/seed/seed-patients.ts",
+		"seed:all": "npm run seed:hospitals && npm run seed:atc-codes && npm run seed:drugs && npm run seed:lavar && npm run seed:operations && npm run seed:patients",
 		"seed": "npm run seed:all",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
@@ -44,6 +45,8 @@
 		"chart.js": "^4.5.1",
 		"clsx": "^2.1.1",
 		"drizzle-orm": "^0.45.1",
+		"echarts": "^6.0.0",
+		"hyparquet": "^1.25.1",
 		"pg": "^8.18.0",
 		"tailwind-merge": "^3.4.0"
 	}

@@ -150,7 +150,7 @@
 		background: rgba(255, 255, 255, 0.95);
 		border: 1px solid rgba(255, 255, 255, 0.8);
 		box-shadow: var(--shadow-glass);
-		z-index: 20;
+		z-index: 4000;
 	}
 
 	.date-panel-header {

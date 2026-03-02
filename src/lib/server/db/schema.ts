@@ -1,4 +1,4 @@
-import { date, numeric, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { date, integer, numeric, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 
 export const drugs = pgTable('drugs', {
 	fdaClass: text('fda_class').notNull(),
@@ -126,4 +126,28 @@ export const goodsReceiptItems = pgTable('goods_receipt_items', {
 		.references(() => atcCodes.id)
 		.notNull(),
 	quantity: numeric('quantity').notNull()
+});
+
+export const outpatientPatients = pgTable('outpatient_patients', {
+	id: serial('id').primaryKey(),
+	patientId: integer('patient_id').notNull(),
+	visitDate: timestamp('visit_date').notNull(),
+	sex: integer('sex').notNull(),
+	age: integer('age').notNull(),
+	primaryDiagnosis: text('primary_diagnosis').notNull(),
+	secondaryDiagnosis: text('secondary_diagnosis').notNull(),
+	prescription: text('prescription').notNull(),
+	department: text('department').notNull()
+});
+
+export const inpatientPatients = pgTable('inpatient_patients', {
+	id: serial('id').primaryKey(),
+	patientId: integer('patient_id').notNull(),
+	visitDate: timestamp('visit_date').notNull(),
+	sex: integer('sex').notNull(),
+	age: integer('age').notNull(),
+	primaryDiagnosis: text('primary_diagnosis').notNull(),
+	secondaryDiagnosis: text('secondary_diagnosis').notNull(),
+	prescription: text('prescription').notNull(),
+	department: text('department').notNull()
 });
