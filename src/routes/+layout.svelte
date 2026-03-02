@@ -3,12 +3,15 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import DatePicker from '$lib/components/DatePicker.svelte';
 	import { page } from '$app/state';
+	import { onMount } from 'svelte';
+	import { bannerItems, setBannerItems } from '$lib/stores/bannerItems';
+	import { sidebarCollapsed, initSidebarStore } from '$lib/stores/sidebar';
 
 	const navItems = [
-		{ label: '대시보드', href: '/dashboard' },
-		{ label: '데이터 입력', href: '/data-input' },
-		{ label: '주문', href: '/order' },
-		{ label: '설정', href: '/settings' }
+		{ label: '대시보드', href: '/dashboard', icon: 'dashboard' },
+		{ label: '데이터 입력', href: '/data-input', icon: 'edit_note' },
+		{ label: '주문', href: '/order', icon: 'shopping_cart' },
+		{ label: '설정', href: '/settings', icon: 'settings' }
 	];
 
 	let { children } = $props();
@@ -19,10 +22,40 @@
 	};
 
 	const isLogin = () => page.url.pathname === '/login';
+
+	const pollIntervalMs = 60_000;
+
+	const refreshBannerItems = async () => {
+		if (isLogin()) return;
+		try {
+			const response = await fetch('/api/banner-items');
+			if (!response.ok) return;
+			const payload = await response.json();
+			setBannerItems(payload.items ?? []);
+		} catch {
+			return;
+		}
+	};
+
+	$effect(() => {
+		if (!isLogin()) {
+			refreshBannerItems();
+		}
+	});
+
+	onMount(() => {
+		initSidebarStore();
+		const interval = setInterval(refreshBannerItems, pollIntervalMs);
+		return () => clearInterval(interval);
+	});
 </script>
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
+	<link
+		rel="stylesheet"
+		href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0"
+	/>
 	<title>MTECH</title>
 	<meta name="description" content="MTECH" />
 </svelte:head>
@@ -32,32 +65,76 @@
 		{@render children()}
 	</main>
 {:else}
-	<div class="app-shell">
+	<div class="app-shell" class:sidebar-collapsed={$sidebarCollapsed}>
 		<aside class="sidebar glass">
-			<div class="brand">
-				<img src="/company_logo.png" alt="MTECH" class="brand-logo" />
+			<div class="sidebar-header">
+				<div class="brand">
+					<img src="/company_logo.png" alt="MTECH" class="brand-logo" />
+				</div>
+				<button
+					type="button"
+					class="sidebar-toggle"
+					onclick={() => sidebarCollapsed.toggle()}
+					aria-label={$sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+				>
+					<span class="material-symbols-outlined">
+						{$sidebarCollapsed ? 'chevron_right' : 'chevron_left'}
+					</span>
+				</button>
 			</div>
 
 			<nav class="nav">
 				{#each navItems as item}
-					<a href={item.href} class:active={isActive(item.href)}>{item.label}</a>
+					<a href={item.href} class:active={isActive(item.href)} title={item.label}>
+						<span class="material-symbols-outlined nav-icon">{item.icon}</span>
+						{#if !$sidebarCollapsed}
+							<span class="nav-label">{item.label}</span>
+						{/if}
+					</a>
 				{/each}
 			</nav>
 
-			<div class="sidebar-footer">
-				시스템 동기화 - Postgres / hecon
-				<div class="muted" style="margin-top: 6px;">마지막 갱신: 2분 전</div>
-			</div>
+			{#if !$sidebarCollapsed}
+				<div class="sidebar-footer">
+					시스템 동기화 - Postgres / hecon
+					<div class="muted" style="margin-top: 6px;">마지막 갱신: 2분 전</div>
+				</div>
+
+				<div class="sidebar-controls">
+					<button type="button" class="sidebar-action">관리자</button>
+					<form method="POST" action="/logout">
+						<button type="submit" class="sidebar-action sidebar-logout">Logout</button>
+					</form>
+				</div>
+			{:else}
+				<div class="sidebar-controls sidebar-controls-collapsed">
+					<form method="POST" action="/logout">
+						<button type="submit" class="sidebar-action-icon sidebar-logout" title="Logout">
+							<span class="material-symbols-outlined">logout</span>
+						</button>
+					</form>
+				</div>
+			{/if}
 		</aside>
 
 		<div class="main">
 			<header class="topbar glass">
-				<div class="topbar-actions">
+				<div class="topbar-row">
 					<DatePicker />
-					<div class="chip">관리자</div>
-					<form method="POST" action="/logout">
-						<button type="submit" class="topbar-logout">Log out</button>
-					</form>
+					<div class="status-banner-marquee" role="region" aria-label="실시간 경보 및 시스템 상태">
+						<div class="status-banner-track">
+							{#each [...$bannerItems, ...$bannerItems] as banner}
+								<article class="status-banner" class:is-warn={banner.level === 'warn'}>
+									<div class="status-banner-head">
+										<span class="status-dot" class:is-warn={banner.level === 'warn'}></span>
+										<span class="status-banner-title">{banner.title}</span>
+									</div>
+									<div class="status-banner-preview">{banner.preview}</div>
+									<div class="status-banner-popover">{banner.detail}</div>
+								</article>
+							{/each}
+						</div>
+					</div>
 				</div>
 			</header>
 

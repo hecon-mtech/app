@@ -4,7 +4,6 @@
 	import { Chart, registerables } from 'chart.js';
 	import type { ECharts } from 'echarts';
 	import Card from '$lib/components/Card.svelte';
-	import MetricCard from '$lib/components/MetricCard.svelte';
 	import TableCard from '$lib/components/TableCard.svelte';
 	import { selectedBaseDate, selectedWeek } from '$lib/stores/dateRange';
 	import DrugSelect from '$lib/components/DrugSelect.svelte';
@@ -21,7 +20,7 @@
 		accuracy: number[];
 	};
 
-	const { summary, orders, drugOptions, waitPieCharts, activityTrend, hospitalId, defaultDrugId } = data as PageData & {
+	const { orders, drugOptions, waitPieCharts, activityTrend, hospitalId, defaultDrugId } = data as PageData & {
 		waitPieCharts: WaitPieCharts;
 		activityTrend: ActivityTrend;
 	};
@@ -42,11 +41,6 @@
 			data: waitPieCharts.ageBuckets
 		}
 	];
-	const displayMetrics = summary.metrics.filter((metric) => metric.label !== '입원');
-	const stockoutDrugNames = summary.inventory
-		.filter((item) => item.status === 'urgent' || item.status === 'warn')
-		.map((item) => item.item.replace(/\s*\([^)]*\)\s*$/, ''))
-		.slice(0, 3);
 	const allDrugOptions = drugOptions;
 	const stockOrderColumns = [
 		{ id: 'item', label: '약품' },
@@ -173,19 +167,30 @@
 				trigger: 'item',
 				formatter: '{b}: {c} ({d}%)'
 			},
+			legend: {
+				orient: 'vertical',
+				right: 8,
+				top: 'center',
+				data: slide.data.map((d) => d.name),
+				itemWidth: 14,
+				itemGap: 12,
+				textStyle: {
+					fontSize: 12,
+					fontFamily: 'Noto Sans KR, sans-serif'
+				}
+			},
 			series: [
 				{
 					type: 'pie',
-					radius: ['45%', '78%'],
-					center: ['50%', '50%'],
+					radius: ['40%', '62%'],
+					center: ['42%', '50%'],
 					minAngle: 2,
 					itemStyle: {
 						borderColor: '#ffffff',
 						borderWidth: 2
 					},
 					label: {
-						show: true,
-						formatter: '{b}\n{d}%'
+						show: false
 					},
 					emphasis: {
 						scale: true,
@@ -368,67 +373,56 @@
 	}
 </script>
 
-<section class="grid-4">
-	{#each displayMetrics as metric, index}
-		{#if index === displayMetrics.length - 1}
-			<div class="card metric-card">
-				<div class="muted">약품 선택</div>
-				<DrugSelect options={filteredDrugOptions} bind:value={selectedDrugId} />
-			</div>
-		{:else if metric.label === '재고 소진 경보'}
-			<div class="card metric-card stockout-blink">
-				<div class="metric-header">
-					<div class="muted">{metric.label}</div>
-				</div>
-				<div class="kpi-value stockout-value">
-					{#if stockoutDrugNames.length > 0}
-						{stockoutDrugNames.join(', ')}
-					{:else}
-						이상 없음
-					{/if}
-				</div>
-				<div class="pill">{metric.delta}</div>
-			</div>
-		{:else if metric.label === '평균 대기'}
-			<div class="card metric-card wait-pie-card metric-span-2">
-				<div class="metric-header">
-					<div class="muted">환자 정보</div>
-					<div class="pill">{waitPieIndex + 1}/3</div>
-				</div>
-				<div class="wait-pie-title">{waitPieSlides[waitPieIndex].title}</div>
-				<div class="muted wait-pie-subtitle">{waitPieSlides[waitPieIndex].subtitle}</div>
-				<div class="wait-pie-canvas" bind:this={waitPieCanvas}></div>
-				<div class="wait-pie-dots">
-					{#each waitPieSlides as _slide, pieIndex}
-						<button
-							type="button"
-							class:active={pieIndex === waitPieIndex}
-							on:click={() => setWaitPieIndex(pieIndex)}
-							aria-label={`Switch to pie chart ${pieIndex + 1}`}
-						></button>
-					{/each}
-				</div>
-			</div>
-		{:else}
-			<MetricCard label={metric.label} value={metric.value} delta={metric.delta} status={metric.status} />
-		{/if}
-	{/each}
-</section>
+<section class="dashboard-priority-grid">
+	<div class="card metric-card wait-pie-card patient-info-card">
+		<div class="metric-header">
+			<div class="muted">환자 정보</div>
+			<div class="pill">{waitPieIndex + 1}/3</div>
+		</div>
+		<div class="wait-pie-title">{waitPieSlides[waitPieIndex].title}</div>
+		<div class="muted wait-pie-subtitle">{waitPieSlides[waitPieIndex].subtitle}</div>
+		<div class="wait-pie-canvas-wrap">
+			<div class="wait-pie-canvas" bind:this={waitPieCanvas}></div>
+		</div>
+		<div class="wait-pie-dots">
+			{#each waitPieSlides as _slide, pieIndex}
+				<button
+					type="button"
+					class:active={pieIndex === waitPieIndex}
+					on:click={() => setWaitPieIndex(pieIndex)}
+					aria-label={`Switch to pie chart ${pieIndex + 1}`}
+				></button>
+			{/each}
+		</div>
+	</div>
 
-<section class="grid-2">
-	<Card title="최근 4주 평균 모델 정확도" subtitle="실사용량 <= 예측 상한이면 정확(약품별 주간 평균 후 주차 평균)">
-		<div style="height: 240px; margin-top: 12px;">
-			<canvas bind:this={activityCanvas}></canvas>
+	<div class="accuracy-panel">
+		<Card title="최근 4주 평균 모델 정확도" subtitle="실사용량 <= 예측 상한이면 정확(약품별 주간 평균 후 주차 평균)">
+			<div class="accuracy-chart-wrap">
+				<canvas bind:this={activityCanvas}></canvas>
+			</div>
+		</Card>
+	</div>
+
+	<div class="usage-panel">
+		<div class="card usage-card">
+			<div class="usage-card-header">
+				<div>
+					<h3>약품 사용량</h3>
+					<p class="muted">실제 사용량과 예측 범위</p>
+				</div>
+				<div class="usage-select-wrap">
+					<DrugSelect options={filteredDrugOptions} bind:value={selectedDrugId} />
+				</div>
+			</div>
+			<div class:chart-empty={!hasLineData} class="line-chart-wrap">
+				<canvas bind:this={occupancyCanvas}></canvas>
+				{#if !hasLineData}
+					<div class="chart-empty-overlay">No available data for {noDataLabel}.</div>
+				{/if}
+			</div>
 		</div>
-	</Card>
-	<Card title="약품 사용량" subtitle="실제 사용량과 예측 범위">
-		<div class:chart-empty={!hasLineData} class="line-chart-wrap">
-			<canvas bind:this={occupancyCanvas}></canvas>
-			{#if !hasLineData}
-				<div class="chart-empty-overlay">No available data for {noDataLabel}.</div>
-			{/if}
-		</div>
-	</Card>
+	</div>
 </section>
 
 <section class="stock-monitoring">
@@ -441,14 +435,18 @@
 </section>
 
 <style>
+	.stock-monitoring {
+		min-width: 0;
+	}
+
 	.stock-monitoring :global(.table th) {
 		text-align: center;
 	}
 
 	.stock-monitoring :global(.table th:first-child),
 	.stock-monitoring :global(.table td:first-child) {
-		max-width: 495px;
-		width: 495px;
+		max-width: min(400px, 45vw);
+		min-width: 120px;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -463,6 +461,68 @@
 		gap: 6px;
 	}
 
+	.dashboard-priority-grid {
+		display: grid;
+		grid-template-columns: minmax(250px, 0.6fr) minmax(0, 0.85fr);
+		grid-template-rows: auto auto;
+		gap: 20px;
+		align-items: stretch;
+		width: 100%;
+		max-width: 100%;
+		overflow-x: hidden;
+	}
+
+	.dashboard-priority-grid > * {
+		min-width: 0;
+	}
+
+	.patient-info-card {
+		grid-column: 1;
+		grid-row: 1 / span 2;
+		min-height: 380px;
+	}
+
+	.accuracy-panel {
+		grid-column: 2;
+		grid-row: 1;
+	}
+
+	.usage-panel {
+		grid-column: 2;
+		grid-row: 2;
+	}
+
+	.usage-panel :global(.line-chart-wrap) {
+		height: 180px;
+	}
+
+	.accuracy-chart-wrap {
+		height: 180px;
+		margin-top: 12px;
+	}
+
+	.usage-card-header {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 16px;
+		margin-bottom: 12px;
+	}
+
+	.usage-card-header h3 {
+		margin: 0 0 8px;
+		font-size: 1.05rem;
+	}
+
+	.usage-card-header .muted {
+		margin-bottom: 0;
+	}
+
+	.usage-select-wrap {
+		flex-shrink: 0;
+		width: min(360px, 100%);
+	}
+
 	.wait-pie-title {
 		font-size: 0.98rem;
 		font-weight: 600;
@@ -473,9 +533,19 @@
 		font-size: 0.78rem;
 	}
 
+	.wait-pie-canvas-wrap {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 0;
+	}
+
 	.wait-pie-canvas {
-		height: 168px;
-		width: 100%;
+		height: 300px;
+		width: 300px;
+		max-width: 100%;
+		margin: 0 auto;
 	}
 
 	.wait-pie-dots {
@@ -498,52 +568,46 @@
 		background: rgba(107, 149, 232, 0.95);
 	}
 
-	.stockout-value {
-		font-size: 1.1rem;
-		line-height: 1.35;
-		display: block;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.stockout-blink {
-		border: 1px solid rgba(210, 88, 88, 0.45);
-		animation: stockout-blink 1.1s ease-in-out infinite;
-	}
-
-	@keyframes stockout-blink {
-		0%,
-		100% {
-			box-shadow:
-				0 0 0 1px rgba(210, 88, 88, 0.12),
-				0 0 10px rgba(210, 88, 88, 0.1),
-				var(--shadow-soft);
-			background: linear-gradient(180deg, rgba(255, 239, 239, 0.9), rgba(255, 255, 255, 0.9));
-		}
-
-		50% {
-			box-shadow:
-				0 0 0 1px rgba(210, 88, 88, 0.28),
-				0 0 26px rgba(210, 88, 88, 0.38),
-				var(--shadow-soft);
-			background: linear-gradient(180deg, rgba(255, 225, 225, 0.96), rgba(255, 246, 246, 0.96));
-		}
-	}
-
-	.metric-span-2 {
-		grid-column: span 2;
-	}
-
 	@media (max-width: 1080px) {
-		.metric-span-2 {
-			grid-column: span 2;
+		.dashboard-priority-grid {
+			grid-template-columns: minmax(220px, 0.7fr) minmax(0, 0.85fr);
+		}
+
+		.wait-pie-canvas {
+			height: 260px;
+			width: 260px;
 		}
 	}
 
 	@media (max-width: 720px) {
-		.metric-span-2 {
-			grid-column: span 1;
+		.dashboard-priority-grid {
+			grid-template-columns: 1fr;
+			grid-template-rows: auto;
+		}
+
+		.patient-info-card,
+		.accuracy-panel,
+		.usage-panel {
+			grid-column: 1;
+			grid-row: auto;
+		}
+
+		.patient-info-card {
+			min-height: 320px;
+		}
+
+		.wait-pie-canvas {
+			height: 240px;
+			width: 240px;
+		}
+
+		.usage-card-header {
+			flex-direction: column;
+			align-items: stretch;
+		}
+
+		.usage-select-wrap {
+			width: 100%;
 		}
 	}
 </style>

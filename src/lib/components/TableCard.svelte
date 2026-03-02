@@ -13,6 +13,7 @@
 
 <Card {title} {subtitle}>
 	{#if columns.length}
+		<div class="table-scroll">
 		<table class="table">
 			<thead>
 				<tr>
@@ -39,6 +40,7 @@
 				{/each}
 			</tbody>
 		</table>
+		</div>
 	{:else}
 		<slot />
 	{/if}
