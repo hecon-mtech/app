@@ -39,7 +39,7 @@ export let maxWidth = '680px';
 		position: fixed;
 		inset: 0;
 		background: rgba(15, 23, 42, 0.45);
-		z-index: 3000;
+		z-index: 9000;
 	}
 
 	.modal {
@@ -50,7 +50,7 @@ export let maxWidth = '680px';
 		width: min(var(--modal-max-width, 680px), calc(100vw - 32px));
 		max-height: 80vh;
 		overflow: hidden;
-		z-index: 3001;
+		z-index: 9001;
 		background: #fff;
 		border-radius: 18px;
 		border: 1px solid rgba(148, 163, 184, 0.35);

@@ -523,10 +523,6 @@
 
 <section class="dashboard-priority-grid">
 	<div class="card metric-card wait-pie-card patient-info-card">
-		<div class="metric-header">
-			<div class="muted">환자 정보</div>
-			<div class="pill">{waitPieIndex + 1}/3</div>
-		</div>
 		<div class="wait-pie-title">{waitPieSlides[waitPieIndex].title}</div>
 		<div class="muted wait-pie-subtitle">{waitPieSlides[waitPieIndex].subtitle}</div>
 		<div class="wait-pie-canvas-wrap">
@@ -555,12 +551,14 @@
 	<div class="usage-panel">
 		<div class="card usage-card">
 			<div class="usage-card-header">
-				<div>
+				<div class="usage-title-row">
 					<h3>약품 사용량</h3>
 					<p class="muted">실제 사용량과 예측 범위</p>
 				</div>
-				<div class="usage-select-wrap">
-					<DrugSelect options={filteredDrugOptions} bind:value={selectedDrugId} />
+				<div class="usage-select-row">
+					<div class="usage-select-wrap">
+						<DrugSelect options={filteredDrugOptions} bind:value={selectedDrugId} />
+					</div>
 				</div>
 			</div>
 			<div class:chart-empty={!hasLineData} class="line-chart-wrap">
@@ -647,6 +645,36 @@
 <style>
 	.stock-monitoring {
 		min-width: 0;
+	}
+
+	.stock-monitoring :global(.table-scroll) {
+		max-height: clamp(200px, calc(100dvh - 560px), 320px);
+		overflow-y: auto;
+		scrollbar-width: thin;
+		scrollbar-color: rgba(107, 122, 140, 0.38) transparent;
+	}
+
+	.stock-monitoring :global(.card) {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.stock-monitoring :global(.table-scroll::-webkit-scrollbar) {
+		width: 8px;
+		height: 8px;
+	}
+
+	.stock-monitoring :global(.table-scroll::-webkit-scrollbar-track) {
+		background: transparent;
+	}
+
+	.stock-monitoring :global(.table-scroll::-webkit-scrollbar-thumb) {
+		background: rgba(107, 122, 140, 0.34);
+		border-radius: 999px;
+	}
+
+	.stock-monitoring :global(.table-scroll::-webkit-scrollbar-thumb:hover) {
+		background: rgba(107, 122, 140, 0.48);
 	}
 
 	.stock-monitoring :global(.table th) {
@@ -739,10 +767,11 @@
 	}
 
 	.dashboard-priority-grid {
+		--dashboard-top-panel-height: 300px;
 		display: grid;
-		grid-template-columns: minmax(250px, 0.6fr) minmax(0, 0.85fr);
-		grid-template-rows: auto auto;
-		gap: 20px;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		grid-template-rows: auto;
+		gap: 16px;
 		align-items: stretch;
 		width: 100%;
 		max-width: 100%;
@@ -755,8 +784,9 @@
 
 	.patient-info-card {
 		grid-column: 1;
-		grid-row: 1 / span 2;
-		min-height: 380px;
+		grid-row: 1;
+		height: var(--dashboard-top-panel-height);
+		min-height: var(--dashboard-top-panel-height);
 	}
 
 	.accuracy-panel {
@@ -764,26 +794,46 @@
 		grid-row: 1;
 	}
 
+	.accuracy-panel :global(.card) {
+		height: var(--dashboard-top-panel-height);
+		display: flex;
+		flex-direction: column;
+	}
+
 	.usage-panel {
-		grid-column: 2;
-		grid-row: 2;
+		grid-column: 3;
+		grid-row: 1;
+	}
+
+	.usage-card {
+		height: var(--dashboard-top-panel-height);
+		display: flex;
+		flex-direction: column;
 	}
 
 	.usage-panel :global(.line-chart-wrap) {
-		height: 180px;
+		flex: 1;
+		height: auto;
+		min-height: 0;
 	}
 
 	.accuracy-chart-wrap {
-		height: 180px;
+		flex: 1;
+		height: auto;
+		min-height: 0;
 		margin-top: 12px;
 	}
 
 	.usage-card-header {
 		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 16px;
+		flex-direction: column;
+		align-items: stretch;
+		gap: 10px;
 		margin-bottom: 12px;
+	}
+
+	.usage-title-row {
+		text-align: left;
 	}
 
 	.usage-card-header h3 {
@@ -796,8 +846,12 @@
 	}
 
 	.usage-select-wrap {
-		flex-shrink: 0;
-		width: min(360px, 100%);
+		width: min(300px, 100%);
+	}
+
+	.usage-select-row {
+		display: flex;
+		justify-content: center;
 	}
 
 	.wait-pie-title {
@@ -819,8 +873,8 @@
 	}
 
 	.wait-pie-canvas {
-		height: 300px;
-		width: 300px;
+		height: 225px;
+		width: 225px;
 		max-width: 100%;
 		margin: 0 auto;
 	}
@@ -847,12 +901,19 @@
 
 	@media (max-width: 1080px) {
 		.dashboard-priority-grid {
-			grid-template-columns: minmax(220px, 0.7fr) minmax(0, 0.85fr);
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+
+		.patient-info-card,
+		.accuracy-panel :global(.card),
+		.usage-card {
+			height: 280px;
+			min-height: 280px;
 		}
 
 		.wait-pie-canvas {
-			height: 260px;
-			width: 260px;
+			height: 198px;
+			width: 198px;
 		}
 	}
 
@@ -870,17 +931,19 @@
 		}
 
 		.patient-info-card {
+			height: auto;
 			min-height: 320px;
 		}
 
-		.wait-pie-canvas {
-			height: 240px;
-			width: 240px;
+		.accuracy-panel :global(.card),
+		.usage-card {
+			height: auto;
+			min-height: 0;
 		}
 
-		.usage-card-header {
-			flex-direction: column;
-			align-items: stretch;
+		.wait-pie-canvas {
+			height: 216px;
+			width: 216px;
 		}
 
 		.usage-select-wrap {
