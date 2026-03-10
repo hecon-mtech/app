@@ -30,6 +30,8 @@ type PatientParquetRow = {
 };
 
 type PatientSeedRow = Omit<typeof outpatientPatients.$inferInsert, 'id'>;
+const hospitalId = process.env.SEED_HOSPITAL_ID ?? 'HOSP0001';
+const SEED_CUTOFF_DATE = '2024-11-30';
 
 const toInteger = (value: unknown) => {
 	const num = Number(value);
@@ -49,6 +51,13 @@ const toDate = (value: unknown) => {
 
 const toText = (value: unknown) => String(value ?? '').trim();
 
+const toDateStr = (value: Date) => {
+	const year = value.getFullYear();
+	const month = String(value.getMonth() + 1).padStart(2, '0');
+	const day = String(value.getDate()).padStart(2, '0');
+	return `${year}-${month}-${day}`;
+};
+
 const readPatients = async (filePath: string) => {
 	const file = await asyncBufferFromFile(filePath);
 	const rows = (await parquetReadObjects({ file })) as PatientParquetRow[];
@@ -56,6 +65,7 @@ const readPatients = async (filePath: string) => {
 	const patients: PatientSeedRow[] = [];
 
 	for (const row of rows) {
+		const now = new Date();
 		const patientId = toInteger(row.id);
 		const visitDate = toDate(row.date);
 		const sex = toInteger(row.sex);
@@ -68,6 +78,7 @@ const readPatients = async (filePath: string) => {
 		if (
 			patientId === null ||
 			visitDate === null ||
+			toDateStr(visitDate) > SEED_CUTOFF_DATE ||
 			sex === null ||
 			age === null ||
 			!primaryDiagnosis ||
@@ -79,6 +90,7 @@ const readPatients = async (filePath: string) => {
 		}
 
 		patients.push({
+			hospitalId,
 			patientId,
 			visitDate,
 			sex,
@@ -86,7 +98,9 @@ const readPatients = async (filePath: string) => {
 			primaryDiagnosis,
 			secondaryDiagnosis,
 			prescription,
-			department
+			department,
+			createdAt: now,
+			updatedAt: now
 		});
 	}
 

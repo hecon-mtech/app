@@ -371,6 +371,22 @@ img {
 	box-shadow: 0 8px 24px rgba(31, 43, 58, 0.08);
 }
 
+.status-banner.is-clickable {
+	cursor: pointer;
+}
+
+.status-banner-btn {
+	text-align: left;
+	font: inherit;
+	color: inherit;
+	border: 1px solid rgba(255, 255, 255, 0.85);
+}
+
+.status-banner.is-clickable:focus-visible {
+	outline: 2px solid rgba(52, 101, 212, 0.45);
+	outline-offset: 2px;
+}
+
 .status-banner-head {
 	display: flex;
 	align-items: center;

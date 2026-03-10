@@ -2,19 +2,25 @@
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import DatePicker from '$lib/components/DatePicker.svelte';
+	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import { bannerItems, setBannerItems } from '$lib/stores/bannerItems';
 	import { sidebarCollapsed, initSidebarStore } from '$lib/stores/sidebar';
+	import { getTenantSegmentFromPath } from '$lib/tenant';
 
 	const navItems = [
-		{ label: '대시보드', href: '/dashboard', icon: 'dashboard' },
-		{ label: '데이터 입력', href: '/data-input', icon: 'edit_note' },
-		{ label: '주문', href: '/order', icon: 'shopping_cart' },
-		{ label: '설정', href: '/settings', icon: 'settings' }
+		{ label: '대시보드', path: '/dashboards', icon: 'dashboard' },
+		{ label: '데이터 입력', path: '/data-input', icon: 'edit_note' },
+		{ label: '주문', path: '/order', icon: 'shopping_cart' },
+		{ label: '설정', path: '/settings', icon: 'settings' }
 	];
 
 	let { children } = $props();
+
+	const getTenantBasePath = () => `/${getTenantSegmentFromPath(page.url.pathname)}`;
+
+	const getNavHref = (path: string) => `${getTenantBasePath()}${path}`;
 
 	const isActive = (href: string) => {
 		const path = page.url.pathname;
@@ -37,6 +43,25 @@
 		}
 	};
 
+	type OrderBannerLink = {
+		action?: 'open-order-modal';
+		targetDrugId?: string;
+		targetLabel?: string;
+	};
+
+	const toOrderBannerLink = (banner: unknown) => banner as OrderBannerLink;
+
+	const handleBannerClick = async (banner: unknown) => {
+		const orderLink = toOrderBannerLink(banner);
+		if (orderLink.action !== 'open-order-modal' || !orderLink.targetDrugId) return;
+		const url = new URL(`${getTenantBasePath()}/dashboards`, page.url.origin);
+		url.searchParams.set('openOrderDrugId', orderLink.targetDrugId);
+		if (orderLink.targetLabel) {
+			url.searchParams.set('openOrderLabel', orderLink.targetLabel);
+		}
+		await goto(`${url.pathname}${url.search}`);
+	};
+
 	$effect(() => {
 		if (!isLogin()) {
 			refreshBannerItems();
@@ -45,8 +70,15 @@
 
 	onMount(() => {
 		initSidebarStore();
+		const onBannerRefreshRequest = () => {
+			refreshBannerItems();
+		};
+		window.addEventListener('banner-refresh-request', onBannerRefreshRequest);
 		const interval = setInterval(refreshBannerItems, pollIntervalMs);
-		return () => clearInterval(interval);
+		return () => {
+			clearInterval(interval);
+			window.removeEventListener('banner-refresh-request', onBannerRefreshRequest);
+		};
 	});
 </script>
 
@@ -85,7 +117,7 @@
 
 			<nav class="nav">
 				{#each navItems as item}
-					<a href={item.href} class:active={isActive(item.href)} title={item.label}>
+					<a href={getNavHref(item.path)} class:active={isActive(getNavHref(item.path))} title={item.label}>
 						<span class="material-symbols-outlined nav-icon">{item.icon}</span>
 						{#if !$sidebarCollapsed}
 							<span class="nav-label">{item.label}</span>
@@ -124,14 +156,30 @@
 					<div class="status-banner-marquee" role="region" aria-label="실시간 경보 및 시스템 상태">
 						<div class="status-banner-track">
 							{#each [...$bannerItems, ...$bannerItems] as banner}
-								<article class="status-banner" class:is-warn={banner.level === 'warn'}>
-									<div class="status-banner-head">
-										<span class="status-dot" class:is-warn={banner.level === 'warn'}></span>
-										<span class="status-banner-title">{banner.title}</span>
-									</div>
-									<div class="status-banner-preview">{banner.preview}</div>
-									<div class="status-banner-popover">{banner.detail}</div>
-								</article>
+								{#if toOrderBannerLink(banner).action === 'open-order-modal'}
+									<button
+										type="button"
+										class="status-banner status-banner-btn is-clickable"
+										class:is-warn={banner.level === 'warn'}
+										onclick={() => handleBannerClick(banner)}
+									>
+										<div class="status-banner-head">
+											<span class="status-dot" class:is-warn={banner.level === 'warn'}></span>
+											<span class="status-banner-title">{banner.title}</span>
+										</div>
+										<div class="status-banner-preview">{banner.preview}</div>
+										<div class="status-banner-popover">{banner.detail}</div>
+									</button>
+								{:else}
+									<article class="status-banner" class:is-warn={banner.level === 'warn'}>
+										<div class="status-banner-head">
+											<span class="status-dot" class:is-warn={banner.level === 'warn'}></span>
+											<span class="status-banner-title">{banner.title}</span>
+										</div>
+										<div class="status-banner-preview">{banner.preview}</div>
+										<div class="status-banner-popover">{banner.detail}</div>
+									</article>
+								{/if}
 							{/each}
 						</div>
 					</div>

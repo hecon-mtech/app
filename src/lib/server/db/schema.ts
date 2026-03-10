@@ -1,4 +1,14 @@
-import { date, integer, numeric, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import {
+	boolean,
+	index,
+	integer,
+	numeric,
+	pgEnum,
+	pgTable,
+	serial,
+	text,
+	timestamp
+} from 'drizzle-orm/pg-core';
 
 export const drugs = pgTable('drugs', {
 	fdaClass: text('fda_class').notNull(),
@@ -18,118 +28,129 @@ export const atcCodes = pgTable('atc_codes', {
 	name: text('name').notNull()
 });
 
-export const hospitals = pgTable('hospitals', {
+export const users = pgTable('users', {
 	id: text('id').primaryKey(),
 	name: text('name').notNull(),
-	password: text('password').notNull()
+	password: text('password').notNull(),
+	description: text('description').notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 });
 
-export const currentUsages = pgTable('current_usages', {
+export const usageTypeEnum = pgEnum('usage_type', ['prediction', 'actual']);
+
+export const usages = pgTable('usages', {
 	id: serial('id').primaryKey(),
 	hospitalId: text('hospital_id')
-		.references(() => hospitals.id)
+		.references(() => users.id)
 		.notNull(),
 	drugId: text('drug_id')
 		.references(() => atcCodes.id)
 		.notNull(),
 	quantity: numeric('quantity').notNull(),
-	timestamp: date('timestamp', { mode: 'date' }).notNull()
+	type: usageTypeEnum('type_').notNull(),
+	dateStr: text('date_str').notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 });
 
-export const supplyPredictions = pgTable('supply_predictions', {
+export const usagePredictionBounds = pgTable(
+	'usage_prediction_bounds',
+	{
+		id: serial('id').primaryKey(),
+		hospitalId: text('hospital_id')
+			.references(() => users.id)
+			.notNull(),
+		drugId: text('drug_id')
+			.references(() => atcCodes.id)
+			.notNull(),
+		dateStr: text('date_str').notNull(),
+		upper: numeric('upper').notNull(),
+		lower: numeric('lower').notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+	},
+	(table) => ({
+		usagePredictionBoundsHospitalDrugDateIdx: index('usage_pred_bounds_hospital_drug_date_idx').on(
+			table.hospitalId,
+			table.drugId,
+			table.dateStr
+		)
+	})
+);
+
+export const inventory = pgTable(
+	'inventory',
+	{
+		id: serial('id').primaryKey(),
+		hospitalId: text('hospital_id')
+			.references(() => users.id)
+			.notNull(),
+		drugId: text('drug_id')
+			.references(() => atcCodes.id)
+			.notNull(),
+		dateStr: text('date_str').notNull(),
+		quantity: numeric('quantity').notNull(),
+		isReal: boolean('is_real').notNull().default(false),
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+	},
+	(table) => ({
+		inventoryHospitalDrugDateIdx: index('inventory_hospital_drug_date_idx').on(
+			table.hospitalId,
+			table.drugId,
+			table.dateStr
+		)
+	})
+);
+
+export const configValueTypeEnum = pgEnum('config_value_type', ['string', 'number', 'boolean']);
+
+export const configurations = pgTable('configurations', {
 	id: serial('id').primaryKey(),
 	hospitalId: text('hospital_id')
-		.references(() => hospitals.id)
+		.references(() => users.id)
+		.notNull(),
+	configId: text('config_id').notNull(),
+	configDesc: text('config_desc').notNull(),
+	configValue: text('config_value').notNull(),
+	configValueType: configValueTypeEnum('config_value_type').notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+export const auctionRegInventory = pgTable('auction_reg_inventory', {
+	id: serial('id').primaryKey(),
+	hospitalId: text('hospital_id')
+		.references(() => users.id)
 		.notNull(),
 	drugId: text('drug_id')
 		.references(() => atcCodes.id)
 		.notNull(),
 	quantity: numeric('quantity').notNull(),
-	upper: numeric('upper').notNull(),
-	lower: numeric('lower').notNull(),
-	time: date('time', { mode: 'date' }).notNull(),
-	model: text('model').notNull()
+	expireAt: timestamp('expire_at', { withTimezone: true }).notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 });
 
-export const stockBalances = pgTable('stock_balances', {
+export const auctionBids = pgTable('auction_bids', {
 	id: serial('id').primaryKey(),
-	hospitalId: text('hospital_id')
-		.references(() => hospitals.id)
+	regInventoryId: integer('reg_inventory_id')
+		.references(() => auctionRegInventory.id)
 		.notNull(),
-	drugId: text('drug_id')
-		.references(() => atcCodes.id)
+	userId: text('user_id')
+		.references(() => users.id)
 		.notNull(),
-	onHand: numeric('on_hand').notNull(),
-	reserved: numeric('reserved').notNull(),
-	reorderPoint: numeric('reorder_point').notNull(),
-	reorderQty: numeric('reorder_qty').notNull(),
-	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull()
-});
-
-export const stockMovements = pgTable('stock_movements', {
-	id: serial('id').primaryKey(),
-	hospitalId: text('hospital_id')
-		.references(() => hospitals.id)
-		.notNull(),
-	drugId: text('drug_id')
-		.references(() => atcCodes.id)
-		.notNull(),
-	movementType: text('movement_type').notNull(),
-	quantity: numeric('quantity').notNull(),
-	refType: text('ref_type'),
-	refId: text('ref_id'),
-	note: text('note'),
-	occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull()
-});
-
-export const purchaseOrders = pgTable('purchase_orders', {
-	id: text('id').primaryKey(),
-	hospitalId: text('hospital_id')
-		.references(() => hospitals.id)
-		.notNull(),
-	supplierName: text('supplier_name').notNull(),
-	status: text('status').notNull(),
-	orderedAt: timestamp('ordered_at', { withTimezone: true }),
-	expectedAt: timestamp('expected_at', { withTimezone: true }),
-	note: text('note')
-});
-
-export const purchaseOrderItems = pgTable('purchase_order_items', {
-	id: serial('id').primaryKey(),
-	poId: text('po_id')
-		.references(() => purchaseOrders.id)
-		.notNull(),
-	drugId: text('drug_id')
-		.references(() => atcCodes.id)
-		.notNull(),
-	orderedQty: numeric('ordered_qty').notNull(),
-	receivedQty: numeric('received_qty').notNull(),
-	unitPrice: numeric('unit_price')
-});
-
-export const goodsReceipts = pgTable('goods_receipts', {
-	id: text('id').primaryKey(),
-	poId: text('po_id').references(() => purchaseOrders.id),
-	hospitalId: text('hospital_id')
-		.references(() => hospitals.id)
-		.notNull(),
-	receivedAt: timestamp('received_at', { withTimezone: true }).notNull(),
-	status: text('status').notNull()
-});
-
-export const goodsReceiptItems = pgTable('goods_receipt_items', {
-	id: serial('id').primaryKey(),
-	grnId: text('grn_id')
-		.references(() => goodsReceipts.id)
-		.notNull(),
-	drugId: text('drug_id')
-		.references(() => atcCodes.id)
-		.notNull(),
-	quantity: numeric('quantity').notNull()
+	price: numeric('price').notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 });
 
 export const outpatientPatients = pgTable('outpatient_patients', {
 	id: serial('id').primaryKey(),
+	hospitalId: text('hospital_id')
+		.references(() => users.id)
+		.notNull(),
 	patientId: integer('patient_id').notNull(),
 	visitDate: timestamp('visit_date').notNull(),
 	sex: integer('sex').notNull(),
@@ -137,11 +158,16 @@ export const outpatientPatients = pgTable('outpatient_patients', {
 	primaryDiagnosis: text('primary_diagnosis').notNull(),
 	secondaryDiagnosis: text('secondary_diagnosis').notNull(),
 	prescription: text('prescription').notNull(),
-	department: text('department').notNull()
+	department: text('department').notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 });
 
 export const inpatientPatients = pgTable('inpatient_patients', {
 	id: serial('id').primaryKey(),
+	hospitalId: text('hospital_id')
+		.references(() => users.id)
+		.notNull(),
 	patientId: integer('patient_id').notNull(),
 	visitDate: timestamp('visit_date').notNull(),
 	sex: integer('sex').notNull(),
@@ -149,5 +175,7 @@ export const inpatientPatients = pgTable('inpatient_patients', {
 	primaryDiagnosis: text('primary_diagnosis').notNull(),
 	secondaryDiagnosis: text('secondary_diagnosis').notNull(),
 	prescription: text('prescription').notNull(),
-	department: text('department').notNull()
+	department: text('department').notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 });

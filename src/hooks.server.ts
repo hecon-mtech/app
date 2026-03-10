@@ -1,5 +1,32 @@
 import { redirect, type Handle } from '@sveltejs/kit';
 import { verifySessionToken } from '$lib/server/session';
+import {
+	getTenantHomePath,
+	getTenantSegmentFromPath,
+	getTenantSegmentFromUserId,
+	type TenantSegment
+} from '$lib/tenant';
+
+const LEGACY_ROUTE_MAPPERS: Array<{
+	prefix: string;
+	resolve: (tenant: TenantSegment, suffix: string) => string;
+}> = [
+	{ prefix: '/dashboard', resolve: (tenant, suffix) => `/${tenant}/dashboards${suffix}` },
+	{ prefix: '/data-input', resolve: (tenant, suffix) => `/${tenant}/data-input${suffix}` },
+	{ prefix: '/order', resolve: (tenant, suffix) => `/${tenant}/order${suffix}` },
+	{ prefix: '/settings', resolve: (tenant, suffix) => `/${tenant}/settings${suffix}` }
+];
+
+const resolveLegacyRoute = (pathname: string, tenant: TenantSegment) => {
+	for (const route of LEGACY_ROUTE_MAPPERS) {
+		if (pathname === route.prefix || pathname.startsWith(`${route.prefix}/`)) {
+			const suffix = pathname.slice(route.prefix.length);
+			return route.resolve(tenant, suffix);
+		}
+	}
+
+	return null;
+};
 
 export const handle: Handle = async ({ event, resolve }) => {
 	const pathname = event.url.pathname;
@@ -14,7 +41,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 	if (token) {
 		const payload = verifySessionToken(token);
 		if (payload) {
-			event.locals.user = { id: payload.sub, name: payload.name };
+			const tenant = getTenantSegmentFromUserId(payload.sub);
+			event.locals.user = { id: payload.sub, name: payload.name, tenant };
 			isAuthenticated = true;
 		}
 	}
@@ -38,8 +66,35 @@ export const handle: Handle = async ({ event, resolve }) => {
 		throw redirect(303, '/login');
 	}
 
-	if (isAuthenticated && (isLoginRoute || isRootRoute)) {
-		throw redirect(303, '/dashboard');
+	if (isAuthenticated) {
+		const tenant = getTenantSegmentFromUserId(event.locals.user?.id ?? '');
+
+		if (isLoginRoute || isRootRoute) {
+			throw redirect(303, getTenantHomePath(tenant));
+		}
+
+		const legacyRoute = resolveLegacyRoute(pathname, tenant);
+		if (legacyRoute) {
+			throw redirect(303, `${legacyRoute}${event.url.search}`);
+		}
+
+		const pathTenant = getTenantSegmentFromPath(pathname);
+		const isTenantRoute =
+			pathname === '/hospital' ||
+			pathname.startsWith('/hospital/') ||
+			pathname === '/hotels' ||
+			pathname.startsWith('/hotels/');
+
+		if (pathname === `/${tenant}`) {
+			throw redirect(303, getTenantHomePath(tenant));
+		}
+
+		if (isTenantRoute && pathTenant !== tenant) {
+			const wrongPrefix = pathTenant === 'hospital' ? '/hospital' : '/hotels';
+			const suffix = pathname.slice(wrongPrefix.length);
+			const nextPath = suffix ? `/${tenant}${suffix}` : getTenantHomePath(tenant);
+			throw redirect(303, `${nextPath}${event.url.search}`);
+		}
 	}
 
 	return resolve(event);

@@ -5,22 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1770657974606,
-      "tag": "0000_numerous_justin_hammer",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1770658118597,
-      "tag": "0001_mixed_sir_ram",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1771894174725,
-      "tag": "0002_stale_agent_zero",
+      "when": 1773200000000,
+      "tag": "0000_auction_book_schema",
       "breakpoints": true
     }
   ]

@@ -1,22 +1,30 @@
 import type { PageServerLoad } from './$types';
 import { db, drizzleDb } from '$lib/server/db';
-import {
-	atcCodes,
-	currentUsages,
-	hospitals,
-	inpatientPatients,
-	outpatientPatients,
-	supplyPredictions
-} from '$lib/server/db/schema';
-import { asc, desc, eq, gte, sql } from 'drizzle-orm';
+import { atcCodes, inpatientPatients, outpatientPatients, usages } from '$lib/server/db/schema';
+import { and, asc, desc, eq, gte, sql } from 'drizzle-orm';
 
 const weekdayLabels = ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'];
+const DEV_BASE_DATE = new Date('2024-12-07');
 
 const toDateKey = (value: Date) => {
 	const year = value.getFullYear();
 	const month = String(value.getMonth() + 1).padStart(2, '0');
 	const day = String(value.getDate()).padStart(2, '0');
 	return `${year}-${month}-${day}`;
+};
+
+const toDateStr = (value: Date) => {
+	const year = value.getFullYear();
+	const month = String(value.getMonth() + 1).padStart(2, '0');
+	const day = String(value.getDate()).padStart(2, '0');
+	return `${year}-${month}-${day}`;
+};
+
+const parseDateStr = (value: string | null | undefined) => {
+	if (!value) return null;
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return null;
+	return date;
 };
 
 const toWeekdayIndex = (value: Date) => {
@@ -39,9 +47,8 @@ const shiftDate = (value: Date, days: number) => {
 	return next;
 };
 
-export const load: PageServerLoad = async () => {
-	const hospitalRows = await drizzleDb.select({ id: hospitals.id }).from(hospitals).limit(1);
-	const hospitalId = hospitalRows[0]?.id ?? 'HOSP0001';
+export const load: PageServerLoad = async ({ locals }) => {
+	const hospitalId = locals.user?.id ?? 'HOSP0001';
 	const summary = await db.getDashboardSummary(hospitalId);
 	const orders = await db.getRecentOrders(hospitalId);
 	const drugOptions = await drizzleDb
@@ -52,12 +59,14 @@ export const load: PageServerLoad = async () => {
 	const [latestOutpatientRow] = await drizzleDb
 		.select({ visitDate: outpatientPatients.visitDate })
 		.from(outpatientPatients)
+		.where(eq(outpatientPatients.hospitalId, hospitalId))
 		.orderBy(desc(outpatientPatients.visitDate))
 		.limit(1);
 
 	const [latestInpatientRow] = await drizzleDb
 		.select({ visitDate: inpatientPatients.visitDate })
 		.from(inpatientPatients)
+		.where(eq(inpatientPatients.hospitalId, hospitalId))
 		.orderBy(desc(inpatientPatients.visitDate))
 		.limit(1);
 
@@ -66,69 +75,76 @@ export const load: PageServerLoad = async () => {
 			? latestOutpatientRow.visitDate > latestInpatientRow.visitDate
 				? latestOutpatientRow.visitDate
 				: latestInpatientRow.visitDate
-			: latestOutpatientRow?.visitDate ?? latestInpatientRow?.visitDate ?? new Date();
+			: latestOutpatientRow?.visitDate ?? latestInpatientRow?.visitDate ?? DEV_BASE_DATE;
 
 	const sixMonthsAgo = new Date(latestVisitDate);
 	sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
 	const [latestUsageRow] = await drizzleDb
-		.select({ date: currentUsages.timestamp })
-		.from(currentUsages)
-		.where(eq(currentUsages.hospitalId, hospitalId))
-		.orderBy(desc(currentUsages.timestamp))
+		.select({ date: usages.dateStr })
+		.from(usages)
+		.where(and(eq(usages.hospitalId, hospitalId), eq(usages.type, 'actual')))
+		.orderBy(desc(usages.dateStr))
 		.limit(1);
 
 	const [latestPredictionRow] = await drizzleDb
-		.select({ date: supplyPredictions.time })
-		.from(supplyPredictions)
-		.where(eq(supplyPredictions.hospitalId, hospitalId))
-		.orderBy(desc(supplyPredictions.time))
+		.select({ date: usages.dateStr })
+		.from(usages)
+		.where(and(eq(usages.hospitalId, hospitalId), eq(usages.type, 'prediction')))
+		.orderBy(desc(usages.dateStr))
 		.limit(1);
 
+	const latestUsageDate = parseDateStr(latestUsageRow?.date);
+	const latestPredictionDate = parseDateStr(latestPredictionRow?.date);
+
 	const latestModelDate =
-		latestUsageRow && latestPredictionRow
-			? latestUsageRow.date > latestPredictionRow.date
-				? latestUsageRow.date
-				: latestPredictionRow.date
-			: latestUsageRow?.date ?? latestPredictionRow?.date ?? new Date();
+		latestUsageDate && latestPredictionDate
+			? latestUsageDate > latestPredictionDate
+				? latestUsageDate
+				: latestPredictionDate
+			: latestUsageDate ?? latestPredictionDate ?? DEV_BASE_DATE;
 
 	const weekStart = shiftDate(latestModelDate, -27);
 	const weekEndExclusive = shiftDate(weekStart, 28);
+	const weekStartStr = toDateStr(weekStart);
+	const weekEndStr = toDateStr(weekEndExclusive);
 
 	const weeklyAccuracyResult = await drizzleDb.execute(sql`
 		with daily_actual as (
 			select
 				drug_id,
-				"timestamp"::date as day,
+				date_str as day,
 				sum(quantity::numeric) as actual_qty
-			from current_usages
+			from usages
 			where hospital_id = ${hospitalId}
-				and "timestamp" >= ${weekStart}
-				and "timestamp" < ${weekEndExclusive}
-			group by drug_id, "timestamp"::date
+				and type_ = 'actual'
+				and date_str >= ${weekStartStr}
+				and date_str < ${weekEndStr}
+			group by drug_id, date_str
 		),
-		daily_pred_upper as (
+		daily_pred as (
 			select
 				drug_id,
-				"time"::date as day,
-				sum(upper::numeric) as pred_upper_qty
-			from supply_predictions
+				date_str as day,
+				sum(quantity::numeric) as pred_qty
+			from usages
 			where hospital_id = ${hospitalId}
-				and "time" >= ${weekStart}
-				and "time" < ${weekEndExclusive}
-			group by drug_id, "time"::date
+				and type_ = 'prediction'
+				and date_str >= ${weekStartStr}
+				and date_str < ${weekEndStr}
+			group by drug_id, date_str
 		),
 		daily_accuracy as (
 			select
-				((a.day - ${weekStart}::date) / 7)::int as week_index,
+				((a.day::date - ${weekStartStr}::date) / 7)::int as week_index,
 				a.drug_id,
-				case when a.actual_qty <= coalesce(p.pred_upper_qty, 0) then 1.0 else 0.0 end as is_accurate
+				case when a.actual_qty <= coalesce(p.pred_qty, 0) then 1.0 else 0.0 end as is_accurate
 			from daily_actual a
-			left join daily_pred_upper p
+			left join daily_pred p
 				on a.drug_id = p.drug_id
 				and a.day = p.day
-			where a.day >= ${weekStart}::date
-				and a.day < ${weekEndExclusive}::date
+			where a.day::date >= ${weekStartStr}::date
+				and a.day::date < ${weekEndStr}::date
 		),
 		drug_week_accuracy as (
 			select
@@ -169,7 +185,12 @@ export const load: PageServerLoad = async () => {
 			age: outpatientPatients.age
 		})
 		.from(outpatientPatients)
-		.where(gte(outpatientPatients.visitDate, sixMonthsAgo));
+		.where(
+			and(
+				eq(outpatientPatients.hospitalId, hospitalId),
+				gte(outpatientPatients.visitDate, sixMonthsAgo)
+			)
+		);
 
 	const inpatientRows = await drizzleDb
 		.select({
@@ -178,7 +199,9 @@ export const load: PageServerLoad = async () => {
 			age: inpatientPatients.age
 		})
 		.from(inpatientPatients)
-		.where(gte(inpatientPatients.visitDate, sixMonthsAgo));
+		.where(
+			and(eq(inpatientPatients.hospitalId, hospitalId), gte(inpatientPatients.visitDate, sixMonthsAgo))
+		);
 
 	const outpatientVisitKeys = new Set<string>();
 	const inpatientVisitKeys = new Set<string>();

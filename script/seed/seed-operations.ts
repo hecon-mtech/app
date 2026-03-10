@@ -1,16 +1,14 @@
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, lte, sql } from 'drizzle-orm';
 import {
 	atcCodes,
-	currentUsages,
-	goodsReceiptItems,
-	goodsReceipts,
-	hospitals,
-	purchaseOrderItems,
-	purchaseOrders,
-	stockBalances,
-	stockMovements
+	auctionBids,
+	auctionRegInventory,
+	configurations,
+	inventory,
+	usages,
+	users
 } from '../../src/lib/server/db/schema';
 
 const dbConfig = {
@@ -30,243 +28,231 @@ const dbConfig = {
 const pool = new Pool(dbConfig);
 const db = drizzle(pool);
 
-const seedHospitalId = process.env.SEED_HOSPITAL_ID;
-const supportedHospitalIds = ['HOSP0001', 'HOSP0002'];
+const TARGET_HOSPITAL_ID = 'HOSP0001';
+const START_DATE_STR = '2024-12-01';
+const END_DATE_STR = '2024-12-07';
 const now = new Date();
 
 const randomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
-
-const randomFrom = <T>(arr: T[]) => arr[randomInt(0, arr.length - 1)];
-
-const shuffle = <T>(arr: T[]) => {
-	const copied = [...arr];
+const toNumeric = (value: number) => value.toFixed(2);
+const toDateStr = (value: Date) => {
+	const year = value.getFullYear();
+	const month = String(value.getMonth() + 1).padStart(2, '0');
+	const day = String(value.getDate()).padStart(2, '0');
+	return `${year}-${month}-${day}`;
+};
+const parseDate = (value: string) => {
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) {
+		throw new Error(`Invalid date: ${value}`);
+	}
+	return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+};
+const eachDate = (startStr: string, endStr: string) => {
+	const dates: string[] = [];
+	const cursor = parseDate(startStr);
+	const end = parseDate(endStr);
+	while (cursor <= end) {
+		dates.push(toDateStr(cursor));
+		cursor.setDate(cursor.getDate() + 1);
+	}
+	return dates;
+};
+const pickN = <T>(rows: T[], count: number) => {
+	const copied = [...rows];
 	for (let i = copied.length - 1; i > 0; i -= 1) {
 		const j = randomInt(0, i);
 		[copied[i], copied[j]] = [copied[j], copied[i]];
 	}
-	return copied;
+	return copied.slice(0, Math.max(0, Math.min(count, copied.length)));
 };
 
-const daysAgo = (days: number) => {
-	const date = new Date(now);
-	date.setDate(date.getDate() - days);
-	return date;
-};
-
-const toNumeric = (value: number) => value.toFixed(2);
-
-const movementTotals = new Map<string, number>();
-const keyOf = (hospitalId: string, drugId: string) => `${hospitalId}::${drugId}`;
-const addMovementTotal = (hospitalId: string, drugId: string, qty: number) => {
-	const key = keyOf(hospitalId, drugId);
-	movementTotals.set(key, (movementTotals.get(key) ?? 0) + qty);
-};
-
-if (seedHospitalId && !supportedHospitalIds.includes(seedHospitalId)) {
-	throw new Error(`SEED_HOSPITAL_ID must be one of: ${supportedHospitalIds.join(', ')}`);
+const requestedHospital = process.env.SEED_HOSPITAL_ID?.trim();
+if (requestedHospital && requestedHospital !== TARGET_HOSPITAL_ID) {
+	throw new Error(`seed:operations only supports ${TARGET_HOSPITAL_ID} for dev mode.`);
 }
 
-const allHospitals = await db.select({ id: hospitals.id }).from(hospitals);
-const allowedHospitals = allHospitals.filter((hospital) => supportedHospitalIds.includes(hospital.id));
-const targetHospitals = seedHospitalId
-	? allowedHospitals.filter((hospital) => hospital.id === seedHospitalId)
-	: allowedHospitals;
+await db.delete(auctionBids);
+await db.delete(auctionRegInventory);
+await db.delete(configurations);
+await db.delete(inventory);
 
-if (targetHospitals.length === 0) {
-	throw new Error(
-		`No supported hospitals found. Run seed:hospitals and ensure one of: ${supportedHospitalIds.join(', ')}`
-	);
+const [targetHospital] = await db
+	.select({ id: users.id })
+	.from(users)
+	.where(eq(users.id, TARGET_HOSPITAL_ID))
+	.limit(1);
+
+if (!targetHospital) {
+	throw new Error(`Target hospital ${TARGET_HOSPITAL_ID} not found. Run seed:users first.`);
 }
 
-const allDrugRows = await db.select({ id: atcCodes.id }).from(atcCodes);
-if (allDrugRows.length === 0) {
-	throw new Error('No ATC codes found. Seed atc_codes first.');
+const supplierRows = await db
+	.select({ id: users.id })
+	.from(users)
+	.where(eq(users.description, 'supplier'));
+
+if (supplierRows.length === 0) {
+	throw new Error('No supplier users found. Seed users first.');
 }
 
-await db.delete(goodsReceiptItems);
-await db.delete(goodsReceipts);
-await db.delete(purchaseOrderItems);
-await db.delete(purchaseOrders);
-await db.delete(stockMovements);
-await db.delete(stockBalances);
+const usageTopRows = await db
+	.select({
+		drugId: usages.drugId,
+		totalUsage: sql<string>`sum(${usages.quantity})`
+	})
+	.from(usages)
+	.where(
+		and(
+			eq(usages.hospitalId, TARGET_HOSPITAL_ID),
+			eq(usages.type, 'actual'),
+			gte(usages.dateStr, START_DATE_STR),
+			lte(usages.dateStr, END_DATE_STR)
+		)
+	)
+	.groupBy(usages.drugId)
+	.orderBy(desc(sql`sum(${usages.quantity})`));
 
-const suppliers = ['동아메디', '한빛약품', '세움헬스케어', '온누리메드', '에버케어'];
-const poStatuses = ['approved', 'ordered', 'partially_received', 'received', 'cancelled'];
+const fallbackDrugs = await db.select({ id: atcCodes.id }).from(atcCodes).limit(120);
+const targetDrugIds = Array.from(
+	new Set([...usageTopRows.map((row) => row.drugId), ...fallbackDrugs.map((row) => row.id)])
+).slice(0, 30);
 
-const stockMovementRows: typeof stockMovements.$inferInsert[] = [];
-const stockBalanceRows: typeof stockBalances.$inferInsert[] = [];
-const purchaseOrderRows: typeof purchaseOrders.$inferInsert[] = [];
-const purchaseOrderItemRows: typeof purchaseOrderItems.$inferInsert[] = [];
-const goodsReceiptRows: typeof goodsReceipts.$inferInsert[] = [];
-const goodsReceiptItemRows: typeof goodsReceiptItems.$inferInsert[] = [];
+const dateStrs = eachDate(START_DATE_STR, END_DATE_STR);
 
-let poCounter = 1;
-let grnCounter = 1;
+const usageDailyRows = await db
+	.select({
+		drugId: usages.drugId,
+		dateStr: usages.dateStr,
+		totalUsage: sql<string>`sum(${usages.quantity})`
+	})
+	.from(usages)
+	.where(
+		and(
+			eq(usages.hospitalId, TARGET_HOSPITAL_ID),
+			eq(usages.type, 'actual'),
+			gte(usages.dateStr, START_DATE_STR),
+			lte(usages.dateStr, END_DATE_STR)
+		)
+	)
+	.groupBy(usages.drugId, usages.dateStr);
 
-for (const hospital of targetHospitals) {
-	const usageRows = await db
-		.select({
-			drugId: currentUsages.drugId,
-			total: sql<string>`sum(${currentUsages.quantity})`
-		})
-		.from(currentUsages)
-		.where(eq(currentUsages.hospitalId, hospital.id))
-		.groupBy(currentUsages.drugId)
-		.orderBy(desc(sql`sum(${currentUsages.quantity})`));
+const usageByDrugDate = new Map<string, number>();
+const usageTotalByDrug = new Map<string, number>();
+for (const row of usageDailyRows) {
+	const qty = Number(row.totalUsage);
+	usageByDrugDate.set(`${row.drugId}::${row.dateStr}`, qty);
+	usageTotalByDrug.set(row.drugId, (usageTotalByDrug.get(row.drugId) ?? 0) + qty);
+}
 
-	const usageDrugIds = usageRows.map((row) => row.drugId);
-	const fallbackDrugIds = shuffle(allDrugRows.map((row) => row.id));
-	const hospitalDrugIds = Array.from(new Set([...usageDrugIds, ...fallbackDrugIds])).slice(0, 28);
-
-	for (const drugId of hospitalDrugIds) {
-		const openingQty = randomInt(120, 320);
-		stockMovementRows.push({
-			hospitalId: hospital.id,
-			drugId,
-			movementType: 'adjustment',
-			quantity: toNumeric(openingQty),
-			refType: 'opening_balance',
-			refId: `OPEN-${hospital.id}`,
-			note: 'Seed opening stock',
-			occurredAt: daysAgo(45)
-		});
-		addMovementTotal(hospital.id, drugId, openingQty);
-
-		const usageEvents = randomInt(6, 14);
-		for (let i = 0; i < usageEvents; i += 1) {
-			const usageQty = randomInt(4, 22);
-			stockMovementRows.push({
-				hospitalId: hospital.id,
-				drugId,
-				movementType: 'usage',
-				quantity: toNumeric(-usageQty),
-				refType: 'usage',
-				refId: `USE-${hospital.id}-${drugId}-${i + 1}`,
-				note: 'Daily dispensing',
-				occurredAt: daysAgo(randomInt(1, 30))
-			});
-			addMovementTotal(hospital.id, drugId, -usageQty);
-		}
+const threshold = randomInt(12, 30);
+await db.insert(configurations).values([
+	{
+		hospitalId: TARGET_HOSPITAL_ID,
+		configId: 'reorder_threshold',
+		configDesc: 'Inventory reorder threshold',
+		configValue: String(threshold),
+		configValueType: 'number',
+		createdAt: now,
+		updatedAt: now
+	},
+	{
+		hospitalId: TARGET_HOSPITAL_ID,
+		configId: 'auction_enabled',
+		configDesc: 'Whether auction order is enabled',
+		configValue: 'true',
+		configValueType: 'boolean',
+		createdAt: now,
+		updatedAt: now
+	},
+	{
+		hospitalId: TARGET_HOSPITAL_ID,
+		configId: 'default_lead_time_days',
+		configDesc: 'Supplier lead time in days',
+		configValue: String(randomInt(3, 10)),
+		configValueType: 'number',
+		createdAt: now,
+		updatedAt: now
 	}
+]);
 
-	const poCount = 12;
-	for (let poIndex = 0; poIndex < poCount; poIndex += 1) {
-		const poId = `PO-${hospital.id}-${String(poCounter).padStart(4, '0')}`;
-		poCounter += 1;
-		const status = randomFrom(poStatuses);
-		const orderedAt = daysAgo(randomInt(2, 25));
-		const expectedAt = daysAgo(randomInt(-10, 4));
+const inventoryRows: typeof inventory.$inferInsert[] = [];
 
-		purchaseOrderRows.push({
-			id: poId,
-			hospitalId: hospital.id,
-			supplierName: randomFrom(suppliers),
-			status,
-			orderedAt,
-			expectedAt,
-			note: status === 'cancelled' ? 'Cancelled due to schedule change' : null
-		});
+for (const drugId of targetDrugIds) {
+	const usageTotal = usageTotalByDrug.get(drugId) ?? 0;
+	const estimatedDaily = Math.max(0.5, usageTotal > 0 ? usageTotal / dateStrs.length : randomInt(1, 4));
+	const reorderFloor = estimatedDaily * 3;
+	const maxCap = estimatedDaily * 21;
+	let runningStock = Math.round(estimatedDaily * randomInt(7, 14));
 
-		const itemDrugIds = shuffle(hospitalDrugIds).slice(0, randomInt(3, 6));
-		const receiptId = `GRN-${hospital.id}-${String(grnCounter).padStart(4, '0')}`;
-		let hasReceipt = false;
+	for (let index = 0; index < dateStrs.length; index += 1) {
+		const dateStr = dateStrs[index];
+		const usedQty =
+			usageByDrugDate.get(`${drugId}::${dateStr}`) ??
+			randomInt(0, Math.max(1, Math.round(estimatedDaily * 1.2)));
 
-		for (const itemDrugId of itemDrugIds) {
-			const orderedQty = randomInt(40, 180);
-			let receivedQty = 0;
-
-			if (status === 'received') {
-				receivedQty = orderedQty;
-			}
-			if (status === 'partially_received') {
-				receivedQty = randomInt(Math.ceil(orderedQty * 0.35), Math.ceil(orderedQty * 0.8));
-			}
-
-			purchaseOrderItemRows.push({
-				poId,
-				drugId: itemDrugId,
-				orderedQty: toNumeric(orderedQty),
-				receivedQty: toNumeric(receivedQty),
-				unitPrice: toNumeric(randomInt(12, 90) + Math.random())
-			});
-
-			if (receivedQty > 0) {
-				hasReceipt = true;
-				goodsReceiptItemRows.push({
-					grnId: receiptId,
-					drugId: itemDrugId,
-					quantity: toNumeric(receivedQty)
-				});
-				stockMovementRows.push({
-					hospitalId: hospital.id,
-					drugId: itemDrugId,
-					movementType: 'receipt',
-					quantity: toNumeric(receivedQty),
-					refType: 'grn',
-					refId: receiptId,
-					note: `Receipt from ${poId}`,
-					occurredAt: daysAgo(randomInt(0, 12))
-				});
-				addMovementTotal(hospital.id, itemDrugId, receivedQty);
-			}
+		if (index > 0 && runningStock < reorderFloor) {
+			runningStock += Math.round(estimatedDaily * randomInt(7, 10));
 		}
 
-		if (hasReceipt) {
-			goodsReceiptRows.push({
-				id: receiptId,
-				poId,
-				hospitalId: hospital.id,
-				receivedAt: daysAgo(randomInt(0, 12)),
-				status: 'posted'
-			});
-			grnCounter += 1;
-		}
-	}
+		runningStock = Math.max(0, runningStock - Math.round(usedQty));
+		runningStock = Math.min(runningStock, Math.round(maxCap));
 
-	const priorityIds = hospitalDrugIds.slice(0, 10);
-	for (const drugId of hospitalDrugIds) {
-		const netQty = movementTotals.get(keyOf(hospital.id, drugId)) ?? 0;
-		let onHand = Math.max(0, netQty);
-		const reorderPoint = priorityIds.includes(drugId) ? randomInt(90, 180) : randomInt(30, 100);
-		if (priorityIds.includes(drugId)) {
-			onHand = Math.min(onHand, randomInt(0, Math.max(0, reorderPoint - 5)));
-		}
-		const reserved = Math.min(randomInt(0, 20), Math.floor(onHand * 0.35));
-		const reorderQty = randomInt(80, 220);
-
-		stockBalanceRows.push({
-			hospitalId: hospital.id,
+		inventoryRows.push({
+			hospitalId: TARGET_HOSPITAL_ID,
 			drugId,
-			onHand: toNumeric(onHand),
-			reserved: toNumeric(reserved),
-			reorderPoint: toNumeric(reorderPoint),
-			reorderQty: toNumeric(reorderQty),
+			dateStr,
+			quantity: toNumeric(runningStock),
+			isReal: Math.random() < 0.2,
+			createdAt: now,
 			updatedAt: now
 		});
 	}
 }
 
-if (purchaseOrderRows.length > 0) {
-	await db.insert(purchaseOrders).values(purchaseOrderRows);
+if (inventoryRows.length > 0) {
+	await db.insert(inventory).values(inventoryRows);
 }
-if (purchaseOrderItemRows.length > 0) {
-	await db.insert(purchaseOrderItems).values(purchaseOrderItemRows);
-}
-if (goodsReceiptRows.length > 0) {
-	await db.insert(goodsReceipts).values(goodsReceiptRows);
-}
-if (goodsReceiptItemRows.length > 0) {
-	await db.insert(goodsReceiptItems).values(goodsReceiptItemRows);
-}
-if (stockMovementRows.length > 0) {
-	await db.insert(stockMovements).values(stockMovementRows);
-}
-if (stockBalanceRows.length > 0) {
-	await db.insert(stockBalances).values(stockBalanceRows);
+
+const latestDate = dateStrs[dateStrs.length - 1];
+const latestInventoryRows = inventoryRows.filter((row) => row.dateStr === latestDate);
+const auctionCandidates = pickN(latestInventoryRows, 8);
+
+for (const row of auctionCandidates) {
+	const auctionQty = Math.max(1, Math.round(Number(row.quantity) * 1.5));
+	const expireAt = new Date(`${latestDate}T00:00:00.000Z`);
+	expireAt.setDate(expireAt.getDate() + randomInt(4, 20));
+
+	const [inserted] = await db
+		.insert(auctionRegInventory)
+		.values({
+			hospitalId: row.hospitalId,
+			drugId: row.drugId,
+			quantity: toNumeric(auctionQty),
+			expireAt,
+			createdAt: now,
+			updatedAt: now
+		})
+		.returning({ id: auctionRegInventory.id });
+
+	const bidders = pickN(supplierRows, randomInt(1, Math.min(3, supplierRows.length)));
+	const basePrice = randomInt(12, 80);
+
+	if (bidders.length > 0) {
+		await db.insert(auctionBids).values(
+			bidders.map((bidder, index) => ({
+				regInventoryId: inserted.id,
+				userId: bidder.id,
+				price: toNumeric(basePrice + index * randomInt(1, 5) + Math.random()),
+				createdAt: now,
+				updatedAt: now
+			}))
+		);
+	}
 }
 
 await pool.end();
 
 console.log(
-	`Seeded operations flow data: ${purchaseOrderRows.length} POs, ${goodsReceiptRows.length} GRNs, ${stockBalanceRows.length} stock balances.`
+	`Seeded daily inventory snapshots for ${TARGET_HOSPITAL_ID} (${START_DATE_STR}..${END_DATE_STR}), rows=${inventoryRows.length}.`
 );

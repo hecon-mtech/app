@@ -6,6 +6,9 @@ export type BannerItem = {
 	preview: string;
 	detail: string;
 	level: 'ok' | 'info' | 'warn';
+	action?: 'open-order-modal';
+	targetDrugId?: string;
+	targetLabel?: string;
 };
 
 const fallbackBannerItems: BannerItem[] = [

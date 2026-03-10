@@ -1,10 +1,11 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import { drizzleDb } from '$lib/server/db';
-import { hospitals } from '$lib/server/db/schema';
+import { users } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { createSessionToken } from '$lib/server/session';
 import { hashPassword, verifyPassword } from '$lib/server/auth';
+import { getTenantHomePath, getTenantSegmentFromUserId } from '$lib/tenant';
 
 export const actions: Actions = {
 	default: async ({ request, cookies }) => {
@@ -18,16 +19,16 @@ export const actions: Actions = {
 
 		const result = await drizzleDb
 			.select()
-			.from(hospitals)
-			.where(eq(hospitals.id, id))
+			.from(users)
+			.where(eq(users.id, id))
 			.limit(1);
 
-		const hospital = result[0];
-		if (!hospital) {
+		const user = result[0];
+		if (!user) {
 			return fail(401, { error: '로그인 정보가 올바르지 않습니다.' });
 		}
 
-		const stored = hospital.password;
+		const stored = user.password;
 		const isHashed = stored.startsWith('scrypt$');
 		const ok = isHashed ? verifyPassword(password, stored) : stored === password;
 
@@ -38,12 +39,12 @@ export const actions: Actions = {
 		if (!isHashed) {
 			const nextHash = hashPassword(password);
 			await drizzleDb
-				.update(hospitals)
-				.set({ password: nextHash })
-				.where(eq(hospitals.id, id));
+				.update(users)
+				.set({ password: nextHash, updatedAt: new Date() })
+				.where(eq(users.id, id));
 		}
 
-		const token = createSessionToken({ sub: hospital.id, name: hospital.name });
+		const token = createSessionToken({ sub: user.id, name: user.name });
 		cookies.set('session', token, {
 			path: '/',
 			httpOnly: true,
@@ -52,6 +53,7 @@ export const actions: Actions = {
 			maxAge: 60 * 60 * 6
 		});
 
-		throw redirect(303, '/dashboard');
+		const tenant = getTenantSegmentFromUserId(user.id);
+		throw redirect(303, getTenantHomePath(tenant));
 	}
 };

@@ -7,6 +7,7 @@ declare global {
 			user?: {
 				id: string;
 				name: string;
+				tenant: 'hospital' | 'hotels';
 			};
 		}
 		// interface PageData {}

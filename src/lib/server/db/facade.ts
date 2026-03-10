@@ -1,13 +1,7 @@
 import type { ActivityPoint, DashboardSummary, OrderItem } from './types';
-import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { drizzleDb } from './drizzle';
-import {
-	atcCodes,
-	currentUsages,
-	purchaseOrderItems,
-	purchaseOrders,
-	stockBalances
-} from './schema';
+import { atcCodes, configurations, inventory, usagePredictionBounds, usages } from './schema';
 
 export type DatabaseFacade = {
 	getDashboardSummary: (hospitalId?: string) => Promise<DashboardSummary>;
@@ -42,6 +36,9 @@ const mockSummary: DashboardSummary = {
 
 const toNumber = (value: unknown) => Number(value ?? 0);
 const formatQty = (value: number) => (Number.isInteger(value) ? `${value}` : value.toFixed(1));
+const formatStockInteger = (value: number) =>
+	`${value >= 0 ? Math.ceil(value) : Math.floor(value)}`;
+const DEV_BASE_DATE = new Date('2024-12-07');
 
 const toDate = (value: unknown) => {
 	if (!value) return null;
@@ -49,54 +46,94 @@ const toDate = (value: unknown) => {
 	return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const toDateLabel = (value: Date | null) => {
-	if (!value) return '-';
+const toDateStr = (value: Date) => {
 	const year = value.getFullYear();
 	const month = String(value.getMonth() + 1).padStart(2, '0');
 	const day = String(value.getDate()).padStart(2, '0');
 	return `${year}-${month}-${day}`;
 };
 
+const addDays = (value: Date, days: number) => {
+	const next = new Date(value);
+	next.setDate(next.getDate() + days);
+	return next;
+};
+
+const getReorderThreshold = async (hospitalId: string) => {
+	const [row] = await drizzleDb
+		.select({ value: configurations.configValue })
+		.from(configurations)
+		.where(
+			and(
+				eq(configurations.hospitalId, hospitalId),
+				eq(configurations.configId, 'reorder_threshold')
+			)
+		)
+		.limit(1);
+
+	const parsed = Number(row?.value ?? 80);
+	return Number.isFinite(parsed) ? parsed : 80;
+};
+
 const getUsageWindowStart = async (hospitalId: string) => {
 	const latestRows = await drizzleDb
-		.select({ latest: sql<unknown>`max(${currentUsages.timestamp})` })
-		.from(currentUsages)
-		.where(eq(currentUsages.hospitalId, hospitalId));
+		.select({ latest: sql<string>`max(${usages.dateStr})` })
+		.from(usages)
+		.where(and(eq(usages.hospitalId, hospitalId), eq(usages.type, 'actual')));
 
 	const latestUsageDate = toDate(latestRows[0]?.latest);
-	const anchor = latestUsageDate ?? new Date();
+	const anchor = latestUsageDate ?? DEV_BASE_DATE;
 	const start = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
 	start.setMonth(start.getMonth() - 3);
 	return start;
 };
 
+const getLatestInventoryDate = async (hospitalId: string) => {
+	const latestRows = await drizzleDb
+		.select({ latest: sql<string>`max(${inventory.dateStr})` })
+		.from(inventory)
+		.where(eq(inventory.hospitalId, hospitalId));
+
+	return latestRows[0]?.latest ?? null;
+};
+
 const getBalanceCandidates = async (hospitalId: string, drugIds?: string[]) => {
+	const latestInventoryDate = await getLatestInventoryDate(hospitalId);
+	if (!latestInventoryDate) {
+		return [];
+	}
+
 	const whereClause =
 		drugIds && drugIds.length > 0
-			? and(eq(stockBalances.hospitalId, hospitalId), inArray(stockBalances.drugId, drugIds))
-			: eq(stockBalances.hospitalId, hospitalId);
+			? and(
+					eq(inventory.hospitalId, hospitalId),
+					eq(inventory.dateStr, latestInventoryDate),
+					inArray(inventory.drugId, drugIds)
+				)
+			: and(eq(inventory.hospitalId, hospitalId), eq(inventory.dateStr, latestInventoryDate));
 
 	const balanceRows = await drizzleDb
 		.select({
-			drugId: stockBalances.drugId,
-			onHand: stockBalances.onHand,
-			reorderPoint: stockBalances.reorderPoint,
+			drugId: inventory.drugId,
+			onHand: sql<string>`sum(${inventory.quantity})`,
 			drugName: atcCodes.name
 		})
-		.from(stockBalances)
-		.innerJoin(atcCodes, eq(stockBalances.drugId, atcCodes.id))
-		.where(whereClause);
+		.from(inventory)
+		.innerJoin(atcCodes, eq(inventory.drugId, atcCodes.id))
+		.where(whereClause)
+		.groupBy(inventory.drugId, atcCodes.name);
+
+	const threshold = await getReorderThreshold(hospitalId);
 
 	return balanceRows
 		.map((row) => {
 			const onHand = toNumber(row.onHand);
-			const reorderPoint = toNumber(row.reorderPoint);
 			return {
 				drugId: row.drugId,
 				drugName: row.drugName,
 				onHand,
 				status: onHand <= 0 ? 'urgent' : 'warn',
-				shortage: reorderPoint - onHand,
+				shortage: threshold - onHand,
 				usage: 0
 			};
 		})
@@ -107,14 +144,22 @@ const getBalanceCandidates = async (hospitalId: string, drugIds?: string[]) => {
 
 const getStockoutCandidates = async (hospitalId: string) => {
 	const since = await getUsageWindowStart(hospitalId);
+	const sinceStr = toDateStr(since);
+
 	const usageRows = await drizzleDb
 		.select({
-			drugId: currentUsages.drugId,
-			totalUsage: sql<string>`sum(${currentUsages.quantity})`
+			drugId: usages.drugId,
+			totalUsage: sql<string>`sum(${usages.quantity})`
 		})
-		.from(currentUsages)
-		.where(and(eq(currentUsages.hospitalId, hospitalId), gte(currentUsages.timestamp, since)))
-		.groupBy(currentUsages.drugId);
+		.from(usages)
+		.where(
+			and(
+				eq(usages.hospitalId, hospitalId),
+				eq(usages.type, 'actual'),
+				gte(usages.dateStr, sinceStr)
+			)
+		)
+		.groupBy(usages.drugId);
 
 	if (usageRows.length === 0) {
 		return getBalanceCandidates(hospitalId);
@@ -152,41 +197,74 @@ const getStockOrderRows = async (hospitalId: string) => {
 		return [];
 	}
 
-	const candidateIds = candidates.map((item) => item.drugId);
-	const orderRows = await drizzleDb
-		.select({
-			drugId: purchaseOrderItems.drugId,
-			orderedQty: purchaseOrderItems.orderedQty,
-			orderedAt: purchaseOrders.orderedAt
-		})
-		.from(purchaseOrderItems)
-		.innerJoin(purchaseOrders, eq(purchaseOrderItems.poId, purchaseOrders.id))
-		.where(
-			and(
-				eq(purchaseOrders.hospitalId, hospitalId),
-				inArray(purchaseOrderItems.drugId, candidateIds)
-			)
-		)
-		.orderBy(desc(purchaseOrders.orderedAt));
-
-	const latestOrderByDrug = new Map<string, { orderedQty: number; orderedAt: Date | null }>();
-
-	for (const row of orderRows) {
-		if (latestOrderByDrug.has(row.drugId)) continue;
-		latestOrderByDrug.set(row.drugId, {
-			orderedQty: toNumber(row.orderedQty),
-			orderedAt: row.orderedAt
-		});
+	const latestInventoryDateText = await getLatestInventoryDate(hospitalId);
+	const latestInventoryDate = toDate(latestInventoryDateText);
+	if (!latestInventoryDate) {
+		return candidates.map((candidate) => ({
+			drugId: candidate.drugId,
+			item: candidate.drugName,
+			currentStock: formatStockInteger(candidate.onHand),
+			nextWeekBest: formatStockInteger(candidate.onHand),
+			nextWeekWorst: formatStockInteger(candidate.onHand),
+			cartAction: '상세 주문'
+		}));
 	}
 
+	const nextWeekStart = addDays(latestInventoryDate, 1);
+	const nextWeekEnd = addDays(latestInventoryDate, 7);
+	const nextWeekStartStr = toDateStr(nextWeekStart);
+	const nextWeekEndStr = toDateStr(nextWeekEnd);
+	const candidateDrugIds = candidates.map((candidate) => candidate.drugId);
+
+	const predictionRows = await drizzleDb
+		.select({
+			drugId: usages.drugId,
+			totalPrediction: sql<string>`sum(${usages.quantity})`
+		})
+		.from(usages)
+		.where(
+			and(
+				eq(usages.hospitalId, hospitalId),
+				eq(usages.type, 'prediction'),
+				inArray(usages.drugId, candidateDrugIds),
+				gte(usages.dateStr, nextWeekStartStr),
+				lte(usages.dateStr, nextWeekEndStr)
+			)
+		)
+		.groupBy(usages.drugId);
+
+	const upperRows = await drizzleDb
+		.select({
+			drugId: usagePredictionBounds.drugId,
+			totalUpper: sql<string>`sum(${usagePredictionBounds.upper})`
+		})
+		.from(usagePredictionBounds)
+		.where(
+			and(
+				eq(usagePredictionBounds.hospitalId, hospitalId),
+				inArray(usagePredictionBounds.drugId, candidateDrugIds),
+				gte(usagePredictionBounds.dateStr, nextWeekStartStr),
+				lte(usagePredictionBounds.dateStr, nextWeekEndStr)
+			)
+		)
+		.groupBy(usagePredictionBounds.drugId);
+
+	const predictionMap = new Map(predictionRows.map((row) => [row.drugId, toNumber(row.totalPrediction)]));
+	const upperMap = new Map(upperRows.map((row) => [row.drugId, toNumber(row.totalUpper)]));
+
 	return candidates.map((candidate) => {
-		const latestOrder = latestOrderByDrug.get(candidate.drugId);
+		const predictedUsage = predictionMap.get(candidate.drugId) ?? 0;
+		const upperUsage = upperMap.get(candidate.drugId) ?? predictedUsage;
+		const nextWeekBest = candidate.onHand - predictedUsage;
+		const nextWeekWorst = candidate.onHand - upperUsage;
+
 		return {
+			drugId: candidate.drugId,
 			item: candidate.drugName,
-			currentStock: `${formatQty(candidate.onHand)}개`,
-			orderedQty: latestOrder ? `${formatQty(latestOrder.orderedQty)}개` : '-',
-			orderedAt: latestOrder ? toDateLabel(latestOrder.orderedAt) : '-',
-			cartAction: '담기'
+			currentStock: formatStockInteger(candidate.onHand),
+			nextWeekBest: formatStockInteger(nextWeekBest),
+			nextWeekWorst: formatStockInteger(nextWeekWorst),
+			cartAction: '상세 주문'
 		};
 	});
 };

@@ -13,7 +13,7 @@ const getWeekRange = (date: Date): DateRange => {
 	return { start, end };
 };
 
-const defaultBaseDate = new Date('2024-02-24');
+const defaultBaseDate = new Date('2024-12-07');
 const selectedWeek = writable<DateRange>(getWeekRange(defaultBaseDate));
 const selectedBaseDate = writable<Date>(new Date(defaultBaseDate));
 

@@ -2,13 +2,20 @@ import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { and, eq, gte, lte } from 'drizzle-orm';
 import { drizzleDb } from '$lib/server/db';
-import { currentUsages, supplyPredictions } from '$lib/server/db/schema';
+import { usages } from '$lib/server/db/schema';
 
 const parseDate = (value: string | null) => {
 	if (!value) return null;
 	const date = new Date(value);
 	if (Number.isNaN(date.getTime())) return null;
 	return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+};
+
+const toDateStr = (date: Date) => {
+	const year = date.getFullYear();
+	const month = String(date.getMonth() + 1).padStart(2, '0');
+	const day = String(date.getDate()).padStart(2, '0');
+	return `${year}-${month}-${day}`;
 };
 
 export const GET: RequestHandler = async ({ url }) => {
@@ -20,31 +27,21 @@ export const GET: RequestHandler = async ({ url }) => {
 		return json({ message: 'Missing required parameters.' }, { status: 400 });
 	}
 
+	const startStr = toDateStr(start);
+	const endStr = toDateStr(end);
+
 	const usageRows = await drizzleDb
-		.select({ drugId: currentUsages.drugId })
-		.from(currentUsages)
+		.select({ drugId: usages.drugId })
+		.from(usages)
 		.where(
 			and(
-				eq(currentUsages.hospitalId, hospitalId),
-				gte(currentUsages.timestamp, start),
-				lte(currentUsages.timestamp, end)
+				eq(usages.hospitalId, hospitalId),
+				gte(usages.dateStr, startStr),
+				lte(usages.dateStr, endStr)
 			)
 		);
 
-	const predictionRows = await drizzleDb
-		.select({ drugId: supplyPredictions.drugId })
-		.from(supplyPredictions)
-		.where(
-			and(
-				eq(supplyPredictions.hospitalId, hospitalId),
-				gte(supplyPredictions.time, start),
-				lte(supplyPredictions.time, end)
-			)
-		);
-
-	const ids = Array.from(
-		new Set([...usageRows.map((row) => row.drugId), ...predictionRows.map((row) => row.drugId)])
-	);
+	const ids = Array.from(new Set(usageRows.map((row) => row.drugId)));
 
 	return json({ drugIds: ids });
 };

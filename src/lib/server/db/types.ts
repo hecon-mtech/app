@@ -25,9 +25,10 @@ export type DashboardSummary = {
 };
 
 export type OrderItem = {
+	drugId: string;
 	item: string;
 	currentStock: string;
-	orderedQty: string;
-	orderedAt: string;
+	nextWeekBest: string;
+	nextWeekWorst: string;
 	cartAction: string;
 };

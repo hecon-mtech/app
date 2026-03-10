@@ -3,8 +3,8 @@ import path from 'node:path';
 import { parse } from 'csv-parse/sync';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { inArray } from 'drizzle-orm';
-import { atcCodes, currentUsages, supplyPredictions } from '../../src/lib/server/db/schema';
+import { eq, inArray } from 'drizzle-orm';
+import { atcCodes, usagePredictionBounds, usages } from '../../src/lib/server/db/schema';
 
 const filePath = process.argv[2]
 	? path.resolve(process.argv[2])
@@ -26,6 +26,8 @@ const dbConfig = {
 
 const hospitalId = process.env.SEED_HOSPITAL_ID ?? 'HOSP0001';
 const modelName = process.env.SEED_MODEL ?? 'LAVAR';
+const ACTUAL_CUTOFF_DATE = '2024-11-30';
+const PREDICTION_CUTOFF_DATE = '2024-12-07';
 
 const pool = new Pool(dbConfig);
 const db = drizzle(pool);
@@ -85,29 +87,42 @@ const usageBatch: {
 	hospitalId: string;
 	drugId: string;
 	quantity: string;
-	timestamp: Date;
+	type: 'actual' | 'prediction';
+	dateStr: string;
+	createdAt: Date;
+	updatedAt: Date;
 }[] = [];
 
-const predictionBatch: {
+const boundsBatch: {
 	hospitalId: string;
 	drugId: string;
-	quantity: string;
+	dateStr: string;
 	upper: string;
 	lower: string;
-	time: Date;
-	model: string;
+	createdAt: Date;
+	updatedAt: Date;
 }[] = [];
+
+const toDateStr = (date: Date) => {
+	const year = date.getFullYear();
+	const month = String(date.getMonth() + 1).padStart(2, '0');
+	const day = String(date.getDate()).padStart(2, '0');
+	return `${year}-${month}-${day}`;
+};
 
 const flushBatch = async () => {
 	if (usageBatch.length > 0) {
-		await db.insert(currentUsages).values(usageBatch);
+		await db.insert(usages).values(usageBatch);
 		usageBatch.length = 0;
 	}
-	if (predictionBatch.length > 0) {
-		await db.insert(supplyPredictions).values(predictionBatch);
-		predictionBatch.length = 0;
+	if (boundsBatch.length > 0) {
+		await db.insert(usagePredictionBounds).values(boundsBatch);
+		boundsBatch.length = 0;
 	}
 };
+
+await db.delete(usages).where(eq(usages.hospitalId, hospitalId));
+await db.delete(usagePredictionBounds).where(eq(usagePredictionBounds.hospitalId, hospitalId));
 
 const dataRows = records.slice(3);
 const chunkSize = 1000;
@@ -117,6 +132,8 @@ const chunkSize = 1000;
 		if (!dateText) continue;
 		const date = new Date(dateText);
 		if (Number.isNaN(date.getTime())) continue;
+		const dateStr = toDateStr(date);
+		const now = new Date();
 
 	for (const [atcCode, columns] of columnMap) {
 		const atc5 = atcCode.slice(0, 5);
@@ -125,32 +142,45 @@ const chunkSize = 1000;
 		}
 
 		const realValue = toNumericString(row[columns.real]);
-		if (realValue !== null) {
+		if (realValue !== null && dateStr <= ACTUAL_CUTOFF_DATE) {
 			usageBatch.push({
 				hospitalId,
 				drugId: atc5,
 				quantity: realValue,
-				timestamp: date
+				type: 'actual',
+				dateStr,
+				createdAt: now,
+				updatedAt: now
 			});
 		}
 
 		const predValue = toNumericString(row[columns.pred]);
 		const upperValue = toNumericString(row[columns.upper ?? -1]);
 		const lowerValue = toNumericString(row[columns.lower ?? -1]);
-		if (predValue !== null && upperValue !== null && lowerValue !== null) {
-			predictionBatch.push({
+		if (predValue !== null && dateStr <= PREDICTION_CUTOFF_DATE) {
+			usageBatch.push({
 				hospitalId,
 				drugId: atc5,
 				quantity: predValue,
-				upper: upperValue,
-				lower: lowerValue,
-				time: date,
-				model: modelName
+				type: 'prediction',
+				dateStr,
+				createdAt: now,
+				updatedAt: now
+			});
+
+			boundsBatch.push({
+				hospitalId,
+				drugId: atc5,
+				dateStr,
+				upper: upperValue ?? predValue,
+				lower: lowerValue ?? predValue,
+				createdAt: now,
+				updatedAt: now
 			});
 		}
 	}
 
-	if (usageBatch.length >= chunkSize || predictionBatch.length >= chunkSize) {
+	if (usageBatch.length >= chunkSize || boundsBatch.length >= chunkSize) {
 		await flushBatch();
 	}
 }
@@ -158,4 +188,4 @@ const chunkSize = 1000;
 await flushBatch();
 await pool.end();
 
-console.log(`Seeded LAVAR data for hospital ${hospitalId}.`);
+console.log(`Seeded usage(actual+prediction) data for hospital ${hospitalId} (${modelName}).`);

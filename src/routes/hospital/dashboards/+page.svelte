@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { PageData } from './$types';
+	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import { Chart, registerables } from 'chart.js';
 	import type { ECharts } from 'echarts';
@@ -7,6 +8,7 @@
 	import TableCard from '$lib/components/TableCard.svelte';
 	import { selectedBaseDate, selectedWeek } from '$lib/stores/dateRange';
 	import DrugSelect from '$lib/components/DrugSelect.svelte';
+	import Modal from '$lib/components/Modal.svelte';
 
 	export let data: PageData;
 	type PieDatum = { name: string; value: number };
@@ -45,9 +47,9 @@
 	const stockOrderColumns = [
 		{ id: 'item', label: '약품' },
 		{ id: 'currentStock', label: '현재' },
-		{ id: 'orderedQty', label: '주문' },
-		{ id: 'orderedAt', label: '주문일' },
-		{ id: 'cartAction', label: '장바구니에 넣기', type: 'action' as const }
+		{ id: 'nextWeekBest', label: '다음주 재고 예상 (best)' },
+		{ id: 'nextWeekWorst', label: '다음주 재고 예상 (worst)' },
+		{ id: 'cartAction', label: '상세 주문', type: 'action' as const }
 	];
 
 	let activityCanvas: HTMLCanvasElement | null = null;
@@ -66,6 +68,20 @@
 	let hasLineData = true;
 	let noDataLabel = '';
 	let filteredDrugOptions = allDrugOptions;
+	let orderModalOpen = false;
+	let associatedLoading = false;
+	let associatedError = '';
+	let selectedOrderLabel = '';
+	let associatedDrugs: Array<{
+		drugCode: string;
+		drugName: string;
+		manufactor: string;
+		atcCode: string;
+	}> = [];
+	let orderQtyByDrug: Record<string, number> = {};
+	let bulkOrdering = false;
+	let bulkOrderMessage: { tone: 'success' | 'error'; message: string } | null = null;
+	let lastQueryOpenKey = '';
 	$: selectedDrug = filteredDrugOptions.find((drug) => drug.id === selectedDrugId);
 	$: baseDateKey = toDateKey($selectedBaseDate);
 
@@ -221,6 +237,138 @@
 		waitPieIndex = index;
 		renderWaitPie();
 	};
+
+	const closeOrderModal = () => {
+		orderModalOpen = false;
+		associatedError = '';
+		associatedDrugs = [];
+		selectedOrderLabel = '';
+		orderQtyByDrug = {};
+		bulkOrdering = false;
+		bulkOrderMessage = null;
+	};
+
+	const normalizeOrderQty = (value: number) => {
+		if (!Number.isFinite(value) || value < 0) return 0;
+		return Math.floor(value);
+	};
+
+	const getOrderQty = (drugCode: string) => orderQtyByDrug[drugCode] ?? 0;
+
+	const handleOrderQtyInput = (drugCode: string, value: string) => {
+		const next = normalizeOrderQty(Number(value));
+		orderQtyByDrug = { ...orderQtyByDrug, [drugCode]: next };
+	};
+
+	const submitBulkOrder = async () => {
+		if (bulkOrdering) return;
+		const targets = associatedDrugs
+			.map((drug) => ({ drugId: drug.drugCode, quantity: getOrderQty(drug.drugCode) }))
+			.filter((item) => Number.isInteger(item.quantity) && item.quantity > 0);
+
+		if (targets.length === 0) {
+			bulkOrderMessage = { tone: 'error', message: '주문 개수가 1 이상인 약품이 없습니다.' };
+			return;
+		}
+
+		bulkOrdering = true;
+		bulkOrderMessage = null;
+
+		try {
+			for (const target of targets) {
+				const response = await fetch('/api/auction-reg', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ drugId: target.drugId, quantity: target.quantity })
+				});
+				const payload = await response.json().catch(() => ({}));
+				if (!response.ok) {
+					throw new Error(
+						typeof payload?.message === 'string' ? payload.message : '주문 등록에 실패했습니다.'
+					);
+				}
+			}
+
+			bulkOrderMessage = {
+				tone: 'success',
+				message: `${targets.length}개 약품 주문이 등록되었습니다.`
+			};
+			if (typeof window !== 'undefined') {
+				window.dispatchEvent(new Event('banner-refresh-request'));
+			}
+		} catch (error) {
+			bulkOrderMessage = {
+				tone: 'error',
+				message:
+					error instanceof Error ? error.message : '주문 등록에 실패했습니다. 잠시 후 다시 시도하세요.'
+			};
+		} finally {
+			bulkOrdering = false;
+		}
+	};
+
+	const openOrderModalForDrug = async (drugId: string, label?: string) => {
+		selectedOrderLabel = label && label.trim() ? label : drugId;
+		orderModalOpen = true;
+		associatedLoading = true;
+		associatedError = '';
+		associatedDrugs = [];
+		orderQtyByDrug = {};
+		bulkOrdering = false;
+		bulkOrderMessage = null;
+
+		if (!drugId) {
+			associatedLoading = false;
+			associatedError = '약품 식별자가 없어 연관 약품을 조회할 수 없습니다.';
+			return;
+		}
+
+		try {
+			const response = await fetch(`/api/drug-associations?drugId=${encodeURIComponent(drugId)}`);
+			const payload = await response.json().catch(() => ({}));
+			if (!response.ok) {
+				throw new Error(
+					typeof payload?.message === 'string'
+						? payload.message
+						: '연관 약품 조회에 실패했습니다.'
+				);
+			}
+			associatedDrugs = Array.isArray(payload?.items) ? payload.items : [];
+			orderQtyByDrug = Object.fromEntries(associatedDrugs.map((item) => [item.drugCode, 0]));
+		} catch (error) {
+			associatedError =
+				error instanceof Error ? error.message : '연관 약품 조회에 실패했습니다. 잠시 후 다시 시도하세요.';
+		} finally {
+			associatedLoading = false;
+		}
+	};
+
+	const handleOrderAction = async (event: CustomEvent<{ row: Record<string, string | number> }>) => {
+		const row = event.detail.row;
+		const drugId = typeof row.drugId === 'string' ? row.drugId : '';
+		const label = typeof row.item === 'string' ? row.item : drugId;
+		await openOrderModalForDrug(drugId, label);
+	};
+
+	$: {
+		const drugId = page.url.searchParams.get('openOrderDrugId')?.trim() ?? '';
+		if (!drugId) {
+			lastQueryOpenKey = '';
+		} else {
+			const label = page.url.searchParams.get('openOrderLabel')?.trim() ?? '';
+			const openKey = `${drugId}::${label}`;
+			if (openKey !== lastQueryOpenKey) {
+				lastQueryOpenKey = openKey;
+				openOrderModalForDrug(drugId, label);
+				if (typeof window !== 'undefined') {
+					const nextUrl = new URL(window.location.href);
+					nextUrl.searchParams.delete('openOrderDrugId');
+					nextUrl.searchParams.delete('openOrderLabel');
+					window.history.replaceState(window.history.state, '', nextUrl.toString());
+				}
+			}
+		}
+	}
 
 		onMount(() => {
 		Chart.register(...registerables);
@@ -428,11 +576,73 @@
 <section class="stock-monitoring">
 	<TableCard
 		title="재고 모니터링"
-		subtitle="현재 재고가 낮은 순 상위 10개 약품의 재고/주문 현황"
+		subtitle="현재 재고가 낮은 순 상위 10개 약품의 다음주 재고 예측 현황"
 		columns={stockOrderColumns}
 		rows={orders}
+		on:action={handleOrderAction}
 	/>
 </section>
+
+<Modal
+	open={orderModalOpen}
+	title={`${selectedOrderLabel} 연관 약품`}
+	maxWidth="980px"
+	on:close={closeOrderModal}
+>
+	{#if associatedLoading}
+		<p class="muted">연관 약품을 조회하고 있습니다...</p>
+	{:else if associatedError}
+		<p class="modal-error">{associatedError}</p>
+	{:else if associatedDrugs.length === 0}
+		<p class="muted">연관 약품 데이터가 없습니다.</p>
+	{:else}
+		<div class="assoc-table-wrap">
+			<table class="assoc-table">
+				<thead>
+					<tr>
+						<th>약품 코드</th>
+						<th>약품명</th>
+						<th>제조사</th>
+						<th>ATC 코드</th>
+						<th>주문 개수</th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each associatedDrugs as assoc}
+						<tr>
+							<td>{assoc.drugCode}</td>
+							<td>{assoc.drugName}</td>
+							<td>{assoc.manufactor}</td>
+							<td>{assoc.atcCode}</td>
+							<td>
+								<input
+									type="number"
+									class="order-qty-input"
+									min="0"
+									step="1"
+									value={getOrderQty(assoc.drugCode)}
+									on:input={(event) =>
+										handleOrderQtyInput(assoc.drugCode, (event.currentTarget as HTMLInputElement).value)}
+								/>
+							</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		</div>
+		{#if bulkOrderMessage?.message}
+			<p class={`order-message ${bulkOrderMessage.tone === 'error' ? 'error' : 'success'}`}>
+				{bulkOrderMessage.message}
+			</p>
+		{/if}
+	{/if}
+	<div slot="footer" class="modal-footer-actions">
+		<button type="button" class="button order-submit-btn" on:click={submitBulkOrder} disabled={bulkOrdering}>
+			{bulkOrdering ? '주문 중...' : '주문'}
+		</button>
+		<button type="button" class="button" on:click={closeOrderModal}>닫기</button>
+	</div>
+</Modal>
 
 <style>
 	.stock-monitoring {
@@ -441,6 +651,12 @@
 
 	.stock-monitoring :global(.table th) {
 		text-align: center;
+		vertical-align: middle;
+	}
+
+	.stock-monitoring :global(.table td) {
+		text-align: center;
+		vertical-align: middle;
 	}
 
 	.stock-monitoring :global(.table th:first-child),
@@ -455,6 +671,67 @@
 	.stock-monitoring :global(.table-action-btn) {
 		display: block;
 		margin: 0 auto;
+	}
+
+	.modal-error {
+		margin: 0;
+		color: #c0392b;
+	}
+
+	.assoc-table-wrap {
+		overflow: auto;
+	}
+
+	.assoc-table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: 0.9rem;
+	}
+
+	.assoc-table th,
+	.assoc-table td {
+		padding: 8px 10px;
+		border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+		text-align: left;
+		vertical-align: top;
+	}
+
+	.order-qty-input {
+		width: 88px;
+		padding: 6px 8px;
+		border: 1px solid rgba(148, 163, 184, 0.55);
+		border-radius: 8px;
+	}
+
+	.order-submit-btn {
+		background: linear-gradient(135deg, #ea6767, #d64545);
+		color: #fff;
+		box-shadow: 0 12px 24px rgba(214, 69, 69, 0.26);
+	}
+
+	.order-submit-btn:disabled {
+		opacity: 0.7;
+		cursor: wait;
+	}
+
+	.modal-footer-actions {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+	}
+
+	.order-message {
+		margin: 6px 0 0;
+		font-size: 0.78rem;
+		line-height: 1.25;
+	}
+
+	.order-message.success {
+		color: #1b7f3c;
+	}
+
+	.order-message.error {
+		color: #c0392b;
 	}
 
 	.wait-pie-card {

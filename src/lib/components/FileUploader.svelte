@@ -1,5 +1,5 @@
 <script lang="ts">
-	export let uploadUrl = '/data-input/upload';
+	export let uploadUrl = './upload';
 	export let inputLabel = '파일';
 	export let helpText = '엑셀 파일을 선택하세요.';
 	export let accept = '.xlsx';
