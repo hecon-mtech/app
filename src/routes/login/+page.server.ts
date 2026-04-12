@@ -5,7 +5,7 @@ import { users } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { createSessionToken } from '$lib/server/session';
 import { hashPassword, verifyPassword } from '$lib/server/auth';
-import { getTenantHomePath, getTenantSegmentFromUserId } from '$lib/tenant';
+import { getTenantHomePath } from '$lib/tenant';
 
 export const actions: Actions = {
 	default: async ({ request, cookies }) => {
@@ -53,7 +53,6 @@ export const actions: Actions = {
 			maxAge: 60 * 60 * 6
 		});
 
-		const tenant = getTenantSegmentFromUserId(user.id);
-		throw redirect(303, getTenantHomePath(tenant));
+		throw redirect(303, getTenantHomePath());
 	}
 };

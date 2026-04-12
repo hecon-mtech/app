@@ -1,11 +1,6 @@
 import { redirect, type Handle } from '@sveltejs/kit';
 import { verifySessionToken } from '$lib/server/session';
-import {
-	getTenantHomePath,
-	getTenantSegmentFromPath,
-	getTenantSegmentFromUserId,
-	type TenantSegment
-} from '$lib/tenant';
+import { getTenantHomePath, getTenantSegmentFromUserId, type TenantSegment } from '$lib/tenant';
 
 const LEGACY_ROUTE_MAPPERS: Array<{
 	prefix: string;
@@ -78,22 +73,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 			throw redirect(303, `${legacyRoute}${event.url.search}`);
 		}
 
-		const pathTenant = getTenantSegmentFromPath(pathname);
-		const isTenantRoute =
-			pathname === '/hospital' ||
-			pathname.startsWith('/hospital/') ||
-			pathname === '/hotels' ||
-			pathname.startsWith('/hotels/');
+		const isTenantRoute = pathname === '/hospital' || pathname.startsWith('/hospital/');
 
 		if (pathname === `/${tenant}`) {
 			throw redirect(303, getTenantHomePath(tenant));
-		}
-
-		if (isTenantRoute && pathTenant !== tenant) {
-			const wrongPrefix = pathTenant === 'hospital' ? '/hospital' : '/hotels';
-			const suffix = pathname.slice(wrongPrefix.length);
-			const nextPath = suffix ? `/${tenant}${suffix}` : getTenantHomePath(tenant);
-			throw redirect(303, `${nextPath}${event.url.search}`);
 		}
 	}
 

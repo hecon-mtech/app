@@ -1,14 +1,7 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { drizzleDb } from '$lib/server/db';
-import { auctionRegInventory, drugs } from '$lib/server/db/schema';
-import { eq } from 'drizzle-orm';
-
-const addDays = (value: Date, days: number) => {
-	const next = new Date(value);
-	next.setDate(next.getDate() + days);
-	return next;
-};
+import { isServiceError } from '$lib/server/services/errors';
+import { createAuctionOrder } from '$lib/server/services/orders';
 
 export const POST: RequestHandler = async ({ locals, request }) => {
 	const hospitalId = locals.user?.id;
@@ -17,52 +10,14 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	}
 
 	const payload = await request.json().catch(() => null);
-	const drugId = typeof payload?.drugId === 'string' ? payload.drugId.trim() : '';
-	const quantityValue = Number(payload?.quantity);
-	const quantity = Number.isInteger(quantityValue) ? quantityValue : NaN;
-
-	if (!drugId) {
-		return json({ message: 'drugId is required.' }, { status: 400 });
-	}
-
-	if (!Number.isInteger(quantity) || quantity <= 0) {
-		return json({ message: 'quantity must be a positive integer.' }, { status: 400 });
-	}
-
-	const [drugRow] = await drizzleDb
-		.select({ drugCode: drugs.drugCode })
-		.from(drugs)
-		.where(eq(drugs.drugCode, drugId))
-		.limit(1);
-
-	if (!drugRow) {
-		return json({ message: '유효하지 않은 약품 코드입니다.' }, { status: 400 });
-	}
-
-	const createdAt = new Date();
-	const expireAt = addDays(createdAt, 2);
 
 	try {
-		const [inserted] = await drizzleDb
-			.insert(auctionRegInventory)
-			.values({
-				hospitalId,
-				drugId,
-				quantity: String(quantity),
-				expireAt,
-				createdAt,
-				updatedAt: createdAt
-			})
-			.returning({ id: auctionRegInventory.id });
+		return json(await createAuctionOrder(hospitalId, payload));
+	} catch (error) {
+		if (isServiceError(error)) {
+			return json({ message: error.message }, { status: error.status });
+		}
 
-		return json({
-			message: '주문이 등록되었습니다.',
-			id: inserted.id,
-			drugId,
-			quantity,
-			expireAt: expireAt.toISOString()
-		});
-	} catch {
-		return json({ message: '주문 등록에 실패했습니다.' }, { status: 500 });
+		throw error;
 	}
 };

@@ -11,13 +11,9 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"seed:drugs": "tsx script/seed/seed-drugs.ts",
-		"seed:atc-codes": "tsx script/seed/seed-atc-codes.ts",
 		"seed:users": "tsx script/seed/seed-hospitals.ts",
 		"seed:hospitals": "npm run seed:users",
-		"seed:lavar": "tsx script/seed/seed-lavar.ts",
-		"seed:operations": "tsx script/seed/seed-operations.ts",
-		"seed:patients": "tsx script/seed/seed-patients.ts",
-		"seed:all": "npm run db:reset && npm run db:migrate && npm run seed:users && npm run seed:atc-codes && npm run seed:drugs && npm run seed:lavar && npm run seed:operations && npm run seed:patients",
+		"seed:all": "npm run db:reset && npm run db:migrate && npm run seed:users && npm run seed:drugs",
 		"seed": "npm run seed:all",
 		"db:generate": "drizzle-kit generate",
 		"db:reset": "tsx script/seed/reset-db.ts",
@@ -45,11 +41,13 @@
 		"vite": "^7.3.1"
 	},
 	"dependencies": {
+		"carta-md": "^4.11.2",
 		"chart.js": "^4.5.1",
 		"clsx": "^2.1.1",
 		"drizzle-orm": "^0.45.1",
 		"echarts": "^6.0.0",
 		"hyparquet": "^1.25.1",
+		"isomorphic-dompurify": "^3.8.0",
 		"pg": "^8.18.0",
 		"tailwind-merge": "^3.4.0"
 	}

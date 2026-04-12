@@ -2,6 +2,7 @@
 	import ListCard from '$lib/components/ListCard.svelte';
 	import TableCard from '$lib/components/TableCard.svelte';
 	import Modal from '$lib/components/Modal.svelte';
+	import OpenAiCredentialsCard from '$lib/components/OpenAiCredentialsCard.svelte';
 
 	const systemSettings = [
 		{ label: 'Postgres 자동 동기화', value: '활성화', status: 'ok' },
@@ -68,6 +69,8 @@
 		rows={teamAccess}
 	/>
 </section>
+
+<OpenAiCredentialsCard />
 
 <section class="card reset-card">
 	<h3>데모 관리</h3>

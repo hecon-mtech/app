@@ -3,8 +3,6 @@ import path from 'node:path';
 import iconv from 'iconv-lite';
 import { parse } from 'csv-parse/sync';
 import { Pool } from 'pg';
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { drugs } from '../../src/lib/server/db/schema';
 
 const filePath = process.argv[2]
 	? path.resolve(process.argv[2])
@@ -25,7 +23,6 @@ const dbConfig = {
 };
 
 const pool = new Pool(dbConfig);
-const db = drizzle(pool);
 
 const buffer = await fs.readFile(filePath);
 const decoded = iconv.decode(buffer, 'euc-kr');
@@ -36,8 +33,6 @@ const records = parse(decoded, {
 	relax_column_count: true
 });
 
-const toAtc5 = (value: string) => value.slice(0, 5);
-
 const rows = records
 	.map((row: string[]) => ({
 		fdaClass: String(row[0] ?? '').trim(),
@@ -46,17 +41,37 @@ const rows = records
 		drugName: String(row[3] ?? '').trim(),
 		manufactor: String(row[4] ?? '').trim(),
 		atcCode: String(row[5] ?? '').trim(),
-		atcName: String(row[6] ?? '').trim(),
-		atc5: toAtc5(String(row[5] ?? '').trim())
+		atcName: String(row[6] ?? '').trim()
 	}))
-	.filter((row) => row.drugCode.length > 0 && row.atc5.length === 5);
+	.filter((row) => row.drugCode.length > 0);
 
 const chunkSize = 1000;
 let inserted = 0;
 
 for (let i = 0; i < rows.length; i += chunkSize) {
 	const batch = rows.slice(i, i + chunkSize);
-	await db.insert(drugs).values(batch).onConflictDoNothing();
+	const valuesSql = batch
+		.map((_, index) => {
+			const base = index * 7;
+			return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7})`;
+		})
+		.join(', ');
+	const params = batch.flatMap((row) => [
+		row.fdaClass,
+		row.ingredientCode,
+		row.drugCode,
+		row.drugName,
+		row.manufactor,
+		row.atcCode,
+		row.atcName
+	]);
+
+	await pool.query(
+		`INSERT INTO drugs (fda_class, ingredient_code, drug_code, drug_name, manufactor, atc_code, atc_name)
+		 VALUES ${valuesSql}
+		 ON CONFLICT (drug_code) DO NOTHING`,
+		params
+	);
 	inserted += batch.length;
 }
 

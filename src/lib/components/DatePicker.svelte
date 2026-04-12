@@ -2,6 +2,8 @@
 	import { onMount } from 'svelte';
 	import { selectedWeek, setSelectedWeek } from '$lib/stores/dateRange';
 
+	export let inline = false;
+
 	let open = false;
 	let locale = 'ko-KR';
 	let today = new Date();
@@ -48,6 +50,7 @@
 	};
 
 	const selectDate = (date: Date) => {
+		currentMonth = new Date(date.getFullYear(), date.getMonth(), 1);
 		setSelectedWeek(date);
 	};
 
@@ -55,6 +58,8 @@
 		locale = navigator.language || 'ko-KR';
 		today = new Date();
 		currentMonth = new Date($selectedWeek.start.getFullYear(), $selectedWeek.start.getMonth(), 1);
+
+		if (inline) return;
 
 		const handleClick = (event: MouseEvent) => {
 			const target = event.target as Node;
@@ -68,16 +73,25 @@
 	});
 </script>
 
-<div class="date-picker">
-	<button class="date-trigger" bind:this={triggerRef} type="button" on:click={() => (open = !open)}>
-		<div class="date-pill-label">Date</div>
-		<div class="date-pill-value">
-			{formatRange($selectedWeek.start, $selectedWeek.end)}
-		</div>
-	</button>
+<div class:inline class="date-picker">
+	{#if !inline}
+		<button class="date-trigger" bind:this={triggerRef} type="button" on:click={() => (open = !open)}>
+			<div class="date-pill-label">Date</div>
+			<div class="date-pill-value">
+				{formatRange($selectedWeek.start, $selectedWeek.end)}
+			</div>
+		</button>
+	{/if}
 
-	{#if open}
+	{#if inline || open}
 		<div class="date-panel" bind:this={panelRef}>
+			{#if inline}
+				<div class="date-inline-summary">
+					<div class="date-pill-label">현재 주간</div>
+					<div class="date-pill-value">{formatRange($selectedWeek.start, $selectedWeek.end)}</div>
+				</div>
+			{/if}
+
 			<div class="date-panel-header">
 				<button type="button" class="nav-btn" on:click={goPrevMonth}>‹</button>
 				<div class="month-label">{getMonthLabel(currentMonth)}</div>
@@ -110,6 +124,10 @@
 <style>
 	.date-picker {
 		position: relative;
+	}
+
+	.date-picker.inline {
+		width: 100%;
 	}
 
 	.date-trigger {
@@ -153,6 +171,21 @@
 		z-index: 4000;
 	}
 
+	.date-picker.inline .date-panel {
+		position: static;
+		top: auto;
+		right: auto;
+		width: 100%;
+		max-width: 100%;
+		padding: 14px 14px 12px;
+	}
+
+	.date-inline-summary {
+		display: grid;
+		gap: 4px;
+		margin-bottom: 10px;
+	}
+
 	.date-panel-header {
 		display: flex;
 		align-items: center;
@@ -191,6 +224,14 @@
 		gap: 6px;
 	}
 
+	.date-picker.inline .weekday-row {
+		margin-bottom: 4px;
+	}
+
+	.date-picker.inline .date-grid {
+		gap: 4px;
+	}
+
 	.date-grid button {
 		border: none;
 		background: transparent;
@@ -200,6 +241,11 @@
 		font-size: 0.85rem;
 		cursor: pointer;
 		color: var(--ink);
+	}
+
+	.date-picker.inline .date-grid button {
+		padding: 5px 0;
+		font-size: 0.82rem;
 	}
 
 	.date-grid button.outside {

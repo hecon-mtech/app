@@ -1,6 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
 
 :root {
+	--app-viewport-height: 100vh;
+	--app-viewport-width: 100vw;
 	--bg: #eef2f6;
 	--bg-glass: rgba(255, 255, 255, 0.55);
 	--bg-glass-strong: rgba(255, 255, 255, 0.75);
@@ -57,6 +59,9 @@ img {
 	min-height: 100vh;
 	gap: 24px;
 	padding: 24px;
+	position: relative;
+	width: 100%;
+	max-width: 100%;
 	transition: grid-template-columns 0.25s ease;
 }
 
@@ -65,6 +70,10 @@ img {
 }
 
 .app-shell > .main {
+	min-width: 0;
+}
+
+.app-shell > * {
 	min-width: 0;
 }
 
@@ -88,6 +97,8 @@ img {
 	display: flex;
 	flex-direction: column;
 	gap: 28px;
+	min-height: 0;
+	overflow: hidden;
 	transition: padding 0.25s ease;
 }
 
@@ -171,14 +182,113 @@ img {
 .nav {
 	display: flex;
 	flex-direction: column;
-	gap: 8px;
+	flex: 0 0 auto;
+	gap: 6px;
+	min-height: 0;
+}
+
+.sidebar-body {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	gap: 18px;
+	min-height: 0;
+	overflow-y: auto;
+	scrollbar-width: thin;
+	scrollbar-color: rgba(107, 122, 140, 0.28) transparent;
+}
+
+.sidebar-body::-webkit-scrollbar {
+	width: 8px;
+}
+
+.sidebar-body::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.sidebar-body::-webkit-scrollbar-thumb {
+	background: rgba(107, 122, 140, 0.22);
+	border-radius: 999px;
+}
+
+.sidebar-body::-webkit-scrollbar-thumb:hover {
+	background: rgba(107, 122, 140, 0.34);
+}
+
+.sidebar-calendar {
+	min-width: 0;
+	padding-top: 4px;
+}
+
+.sidebar-session-log {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	gap: 12px;
+	min-height: 0;
+}
+
+.sidebar-session-button {
+	display: block;
+	width: 100%;
+	padding: 10px 12px;
+	border: 1px solid rgba(255, 255, 255, 0.48);
+	border-radius: 12px;
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(240, 248, 255, 0.16));
+	box-shadow:
+		0 10px 22px rgba(31, 74, 121, 0.1),
+		inset 0 1px 0 rgba(255, 255, 255, 0.74);
+	font: inherit;
+	font-size: 0.78rem;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	text-align: left;
+	color: rgba(31, 43, 58, 0.68);
+	cursor: default;
+}
+
+.sidebar-session-list {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	min-height: 0;
+	overflow-y: auto;
+	padding-right: 2px;
+}
+
+.sidebar-session-button {
+	cursor: pointer;
+	transition:
+		border-color 0.18s ease,
+		background 0.18s ease,
+		color 0.18s ease,
+		transform 0.18s ease,
+		box-shadow 0.18s ease;
+}
+
+.sidebar-session-button:hover {
+	border-color: rgba(255, 255, 255, 0.72);
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.44), rgba(240, 248, 255, 0.24));
+	color: rgba(31, 43, 58, 0.82);
+	transform: translateY(-1px);
+}
+
+.sidebar-session-button.is-active {
+	border-color: rgba(255, 255, 255, 0.82);
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.54), rgba(226, 241, 255, 0.26));
+	box-shadow:
+		0 14px 28px rgba(31, 74, 121, 0.14),
+		inset 0 1px 0 rgba(255, 255, 255, 0.84);
+	color: rgba(31, 43, 58, 0.9);
+	cursor: default;
+	transform: none;
 }
 
 .nav a {
 	display: flex;
 	align-items: center;
 	gap: 12px;
-	padding: 12px 14px;
+	padding: 9px 12px;
 	border-radius: var(--radius-md);
 	color: var(--muted);
 	font-weight: 500;
@@ -188,12 +298,12 @@ img {
 }
 
 .app-shell.sidebar-collapsed .nav a {
-	padding: 12px;
+	padding: 10px;
 	justify-content: center;
 }
 
 .nav-icon {
-	font-size: 24px;
+	font-size: 22px;
 	flex-shrink: 0;
 }
 
@@ -210,23 +320,14 @@ img {
 .nav a:hover {
 	color: var(--ink);
 	background: rgba(255, 255, 255, 0.6);
-	box-shadow: 6px 6px 14px rgba(163, 181, 198, 0.3),
-		-6px -6px 14px rgba(255, 255, 255, 0.8);
-}
-
-.sidebar-footer {
-	margin-top: auto;
-	padding: 16px;
-	border-radius: var(--radius-md);
-	background: rgba(255, 255, 255, 0.45);
-	font-size: 0.85rem;
-	color: var(--muted);
+	box-shadow: none;
 }
 
 .sidebar-controls {
 	display: flex;
 	flex-direction: column;
 	gap: 10px;
+	margin-top: auto;
 }
 
 .sidebar-controls form {
@@ -298,6 +399,7 @@ img {
 	display: flex;
 	flex-direction: column;
 	gap: 20px;
+	min-height: 0;
 }
 
 .topbar {
@@ -465,12 +567,1279 @@ img {
 	background: rgba(31, 43, 58, 0.95);
 }
 
+.alarm-fab {
+	position: fixed;
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	padding: 12px 16px;
+	border: 1px solid rgba(255, 255, 255, 0.62);
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.44), rgba(217, 240, 255, 0.2));
+	box-shadow:
+		0 22px 54px rgba(31, 74, 121, 0.18),
+		inset 0 1px 0 rgba(255, 255, 255, 0.82),
+		inset 0 -1px 0 rgba(255, 255, 255, 0.16);
+	backdrop-filter: blur(26px) saturate(175%);
+	-webkit-backdrop-filter: blur(26px) saturate(175%);
+	border-radius: 14px;
+	font: inherit;
+	color: var(--ink);
+	cursor: grab;
+	z-index: 7200;
+	user-select: none;
+	touch-action: none;
+	transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.alarm-fab:active {
+	cursor: grabbing;
+}
+
+.alarm-fab:hover {
+	transform: translateY(-1px);
+	box-shadow:
+		0 26px 60px rgba(31, 74, 121, 0.22),
+		inset 0 1px 0 rgba(255, 255, 255, 0.84),
+		inset 0 -1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.alarm-fab .material-symbols-outlined {
+	font-size: 22px;
+	color: #a23030;
+}
+
+.alarm-fab-label {
+	font-size: 0.92rem;
+	font-weight: 700;
+	line-height: 1;
+}
+
+.alarm-fab-badge {
+	min-width: 22px;
+	height: 22px;
+	padding: 0 6px;
+	border-radius: 999px;
+	background: rgba(216, 75, 75, 0.92);
+	color: #fff;
+	font-size: 0.76rem;
+	font-weight: 700;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	box-shadow: 0 8px 18px rgba(175, 49, 49, 0.32);
+}
+
+.alarm-panel {
+	position: fixed;
+	width: min(420px, calc(100vw - 36px));
+	max-height: min(68vh, 640px);
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 18px;
+	border: 1px solid rgba(255, 255, 255, 0.58);
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.56), rgba(226, 241, 255, 0.22));
+	box-shadow:
+		0 30px 72px rgba(31, 74, 121, 0.24),
+		inset 0 1px 0 rgba(255, 255, 255, 0.84),
+		inset 0 -1px 0 rgba(255, 255, 255, 0.16);
+	backdrop-filter: blur(34px) saturate(190%) contrast(108%);
+	-webkit-backdrop-filter: blur(34px) saturate(190%) contrast(108%);
+	border-radius: 18px;
+	z-index: 7201;
+	overflow: hidden;
+}
+
+.alarm-panel-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+}
+
+.alarm-panel-header h2 {
+	margin: 4px 0 0;
+	font-size: 1.2rem;
+	line-height: 1.2;
+}
+
+.alarm-panel-eyebrow {
+	font-size: 0.72rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: rgba(31, 43, 58, 0.54);
+}
+
+.alarm-panel-close {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 36px;
+	height: 36px;
+	border: 1px solid rgba(255, 255, 255, 0.62);
+	border-radius: 12px;
+	background: rgba(255, 255, 255, 0.22);
+	color: var(--ink);
+	cursor: pointer;
+	font: inherit;
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.alarm-panel-meta {
+	font-size: 0.8rem;
+	line-height: 1.35;
+}
+
+.alarm-panel-list {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	min-height: 0;
+	overflow-y: auto;
+	padding-right: 2px;
+	scrollbar-width: thin;
+	scrollbar-color: rgba(107, 122, 140, 0.34) transparent;
+}
+
+.alarm-card {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 14px;
+	border: 1px solid rgba(255, 255, 255, 0.48);
+	border-radius: 14px;
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(244, 250, 255, 0.16));
+	box-shadow:
+		0 14px 28px rgba(31, 74, 121, 0.12),
+		inset 0 1px 0 rgba(255, 255, 255, 0.74),
+		inset 0 -1px 0 rgba(255, 255, 255, 0.12);
+	font: inherit;
+	color: inherit;
+	text-align: left;
+}
+
+.alarm-card.is-clickable {
+	cursor: pointer;
+	transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.alarm-card.is-clickable:hover {
+	transform: translateY(-1px);
+	border-color: rgba(255, 255, 255, 0.66);
+	box-shadow:
+		0 18px 34px rgba(31, 74, 121, 0.16),
+		inset 0 1px 0 rgba(255, 255, 255, 0.82),
+		inset 0 -1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.alarm-card.is-warn {
+	border-color: rgba(216, 75, 75, 0.34);
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.38), rgba(255, 233, 233, 0.18));
+}
+
+.alarm-card-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.alarm-card-title-wrap {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+.alarm-card-title {
+	font-size: 0.88rem;
+	font-weight: 700;
+	line-height: 1.25;
+}
+
+.alarm-card-action {
+	flex-shrink: 0;
+	font-size: 0.76rem;
+	font-weight: 700;
+	color: #275f96;
+	background: rgba(255, 255, 255, 0.42);
+	padding: 5px 8px;
+	border-radius: 999px;
+}
+
+.alarm-card-preview,
+.alarm-card-detail {
+	font-size: 0.82rem;
+	line-height: 1.45;
+}
+
+.alarm-card-preview {
+	color: rgba(31, 43, 58, 0.76);
+}
+
+.alarm-card-detail {
+	color: rgba(31, 43, 58, 0.64);
+}
+
 .content {
 	position: relative;
 	display: flex;
 	flex-direction: column;
+	flex: 1 1 auto;
 	gap: 20px;
+	min-height: 0;
 	min-width: 0;
+	overflow: hidden;
+}
+
+.app-shell.dashboard-shell {
+	--liquid-light-x: 52%;
+	--liquid-light-y: 18%;
+	--liquid-refract-x: 0px;
+	--liquid-refract-y: 0px;
+	--liquid-sheen-angle: 34deg;
+	--liquid-sheen-opacity: 0.46;
+	--liquid-shell-wash: rgba(255, 255, 255, 0.58);
+	--liquid-shell-ice: rgba(196, 232, 255, 0.18);
+	--liquid-surface-base: rgba(255, 255, 255, 0.18);
+	--liquid-surface-edge: rgba(255, 255, 255, 0.52);
+	--liquid-surface-edge-strong: rgba(255, 255, 255, 0.78);
+	--liquid-surface-tint: rgba(144, 210, 255, 0.16);
+	--liquid-shadow: 0 26px 70px rgba(33, 74, 122, 0.16), 0 10px 22px rgba(20, 48, 87, 0.08);
+	--liquid-shadow-hover: 0 30px 78px rgba(33, 74, 122, 0.2), 0 16px 28px rgba(20, 48, 87, 0.12);
+	height: var(--app-viewport-height);
+	max-height: var(--app-viewport-height);
+	width: min(100%, var(--app-viewport-width));
+	max-width: var(--app-viewport-width);
+	padding: 20px;
+	gap: 20px;
+	overflow: hidden;
+	isolation: isolate;
+	background:
+		radial-gradient(circle at var(--liquid-light-x) calc(var(--liquid-light-y) - 6%), rgba(255, 255, 255, 0.92), transparent 26%),
+		radial-gradient(circle at calc(var(--liquid-light-x) + 20%) calc(var(--liquid-light-y) + 34%), rgba(132, 211, 255, 0.36), transparent 24%),
+		radial-gradient(circle at 84% 18%, rgba(143, 222, 255, 0.32), transparent 21%),
+		radial-gradient(circle at 18% 84%, rgba(105, 182, 255, 0.2), transparent 22%),
+		linear-gradient(150deg, rgba(240, 248, 255, 0.98), rgba(219, 233, 250, 0.92));
+}
+
+.app-shell.dashboard-shell::before,
+.app-shell.dashboard-shell::after {
+	content: '';
+	position: absolute;
+	inset: -8%;
+	pointer-events: none;
+	z-index: 0;
+	background-repeat: no-repeat;
+	mix-blend-mode: screen;
+}
+
+.app-shell.dashboard-shell::before {
+	background:
+		radial-gradient(circle at calc(var(--liquid-light-x) + var(--liquid-refract-x)) calc(var(--liquid-light-y) + var(--liquid-refract-y)), rgba(255, 255, 255, 0.78), transparent 22%),
+		radial-gradient(circle at calc(92% - var(--liquid-light-x)) calc(74% - var(--liquid-light-y)), rgba(147, 231, 255, 0.34), transparent 20%),
+		radial-gradient(circle at 28% 88%, rgba(108, 186, 255, 0.2), transparent 24%);
+	filter: blur(18px);
+	opacity: 0.98;
+}
+
+.app-shell.dashboard-shell::after {
+	background:
+		linear-gradient(var(--liquid-sheen-angle), rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.06) 24%, rgba(131, 211, 255, 0.18) 52%, rgba(255, 255, 255, 0.12) 74%, rgba(255, 255, 255, 0.52)),
+		radial-gradient(circle at 42% 40%, rgba(255, 255, 255, 0.34), transparent 28%);
+	filter: blur(28px);
+	opacity: 0.58;
+	transform: translate3d(var(--liquid-refract-x), var(--liquid-refract-y), 0);
+}
+
+.app-shell.dashboard-shell > .sidebar,
+.app-shell.dashboard-shell > .main {
+	position: relative;
+	z-index: 1;
+}
+
+.app-shell.dashboard-shell .sidebar,
+.app-shell.dashboard-shell .topbar,
+.app-shell.dashboard-shell .card,
+.app-shell.dashboard-shell .status-banner,
+.app-shell.dashboard-shell .nav a,
+.app-shell.dashboard-shell .sidebar-toggle,
+.app-shell.dashboard-shell .sidebar-action,
+.app-shell.dashboard-shell .sidebar-action-icon,
+.app-shell.dashboard-shell .date-trigger,
+.app-shell.dashboard-shell .date-panel,
+.app-shell.dashboard-shell .nav-btn,
+.app-shell.dashboard-shell .drug-input-wrap,
+.app-shell.dashboard-shell .drug-menu,
+.app-shell.dashboard-shell .drug-option,
+.app-shell.dashboard-shell .button,
+.app-shell.dashboard-shell .table-action-btn,
+.app-shell.dashboard-shell .order-qty-input,
+.app-shell.dashboard-shell .modal,
+.app-shell.dashboard-shell .modal-close {
+	position: relative;
+	overflow: hidden;
+	isolation: isolate;
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.12));
+	border: 1px solid var(--liquid-surface-edge);
+	box-shadow:
+		var(--liquid-shadow),
+		inset 0 1px 0 rgba(255, 255, 255, 0.62),
+		inset 0 -1px 0 rgba(255, 255, 255, 0.14);
+	backdrop-filter: blur(32px) saturate(190%) contrast(106%) brightness(1.03);
+	-webkit-backdrop-filter: blur(32px) saturate(190%) contrast(106%) brightness(1.03);
+	transition:
+		background 0.22s ease,
+		border-color 0.22s ease,
+		box-shadow 0.22s ease,
+		transform 0.22s ease;
+}
+
+.app-shell.dashboard-shell .sidebar::before,
+.app-shell.dashboard-shell .topbar::before,
+.app-shell.dashboard-shell .card::before,
+.app-shell.dashboard-shell .status-banner::before,
+.app-shell.dashboard-shell .nav a::before,
+.app-shell.dashboard-shell .sidebar-toggle::before,
+.app-shell.dashboard-shell .sidebar-action::before,
+.app-shell.dashboard-shell .sidebar-action-icon::before,
+.app-shell.dashboard-shell .date-trigger::before,
+.app-shell.dashboard-shell .date-panel::before,
+.app-shell.dashboard-shell .nav-btn::before,
+.app-shell.dashboard-shell .drug-input-wrap::before,
+.app-shell.dashboard-shell .drug-menu::before,
+.app-shell.dashboard-shell .drug-option::before,
+.app-shell.dashboard-shell .button::before,
+.app-shell.dashboard-shell .table-action-btn::before,
+.app-shell.dashboard-shell .order-qty-input::before,
+.app-shell.dashboard-shell .modal::before,
+.app-shell.dashboard-shell .modal-close::before,
+.app-shell.dashboard-shell .sidebar::after,
+.app-shell.dashboard-shell .topbar::after,
+.app-shell.dashboard-shell .card::after,
+.app-shell.dashboard-shell .status-banner::after,
+.app-shell.dashboard-shell .nav a::after,
+.app-shell.dashboard-shell .sidebar-toggle::after,
+.app-shell.dashboard-shell .sidebar-action::after,
+.app-shell.dashboard-shell .sidebar-action-icon::after,
+.app-shell.dashboard-shell .date-trigger::after,
+.app-shell.dashboard-shell .date-panel::after,
+.app-shell.dashboard-shell .nav-btn::after,
+.app-shell.dashboard-shell .drug-input-wrap::after,
+.app-shell.dashboard-shell .drug-menu::after,
+.app-shell.dashboard-shell .drug-option::after,
+.app-shell.dashboard-shell .button::after,
+.app-shell.dashboard-shell .table-action-btn::after,
+.app-shell.dashboard-shell .order-qty-input::after,
+.app-shell.dashboard-shell .modal::after,
+.app-shell.dashboard-shell .modal-close::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	pointer-events: none;
+}
+
+.app-shell.dashboard-shell .sidebar::before,
+.app-shell.dashboard-shell .topbar::before,
+.app-shell.dashboard-shell .card::before,
+.app-shell.dashboard-shell .status-banner::before,
+.app-shell.dashboard-shell .nav a::before,
+.app-shell.dashboard-shell .sidebar-toggle::before,
+.app-shell.dashboard-shell .sidebar-action::before,
+.app-shell.dashboard-shell .sidebar-action-icon::before,
+.app-shell.dashboard-shell .date-trigger::before,
+.app-shell.dashboard-shell .date-panel::before,
+.app-shell.dashboard-shell .nav-btn::before,
+.app-shell.dashboard-shell .drug-input-wrap::before,
+.app-shell.dashboard-shell .drug-menu::before,
+.app-shell.dashboard-shell .drug-option::before,
+.app-shell.dashboard-shell .button::before,
+.app-shell.dashboard-shell .table-action-btn::before,
+.app-shell.dashboard-shell .order-qty-input::before,
+.app-shell.dashboard-shell .modal::before,
+.app-shell.dashboard-shell .modal-close::before {
+	background:
+		radial-gradient(130% 130% at calc(var(--liquid-light-x) + var(--liquid-refract-x)) calc(var(--liquid-light-y) + var(--liquid-refract-y)), rgba(255, 255, 255, 0.78), transparent 34%),
+		linear-gradient(var(--liquid-sheen-angle), rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0.08) 24%, rgba(137, 215, 255, 0.18) 52%, rgba(255, 255, 255, 0.12) 76%, rgba(255, 255, 255, 0.58)),
+		radial-gradient(120% 110% at 14% 104%, rgba(118, 194, 255, 0.18), transparent 50%);
+	opacity: var(--liquid-sheen-opacity);
+	mix-blend-mode: screen;
+	transform: translate3d(var(--liquid-refract-x), var(--liquid-refract-y), 0);
+}
+
+
+.app-shell.dashboard-shell .sidebar::after,
+.app-shell.dashboard-shell .topbar::after,
+.app-shell.dashboard-shell .card::after,
+.app-shell.dashboard-shell .status-banner::after,
+.app-shell.dashboard-shell .nav a::after,
+.app-shell.dashboard-shell .sidebar-toggle::after,
+.app-shell.dashboard-shell .sidebar-action::after,
+.app-shell.dashboard-shell .sidebar-action-icon::after,
+.app-shell.dashboard-shell .date-trigger::after,
+.app-shell.dashboard-shell .date-panel::after,
+.app-shell.dashboard-shell .nav-btn::after,
+.app-shell.dashboard-shell .drug-input-wrap::after,
+.app-shell.dashboard-shell .drug-menu::after,
+.app-shell.dashboard-shell .drug-option::after,
+.app-shell.dashboard-shell .button::after,
+.app-shell.dashboard-shell .table-action-btn::after,
+.app-shell.dashboard-shell .order-qty-input::after,
+.app-shell.dashboard-shell .modal::after,
+.app-shell.dashboard-shell .modal-close::after {
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 38%, rgba(111, 194, 255, 0.08));
+	box-shadow:
+		inset 0 1px 0 var(--liquid-surface-edge-strong),
+		inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+		inset 0 -24px 34px rgba(110, 186, 255, 0.05);
+	opacity: 0.88;
+}
+
+.app-shell.dashboard-shell .sidebar,
+.app-shell.dashboard-shell .topbar,
+.app-shell.dashboard-shell .card,
+.app-shell.dashboard-shell .date-panel,
+.app-shell.dashboard-shell .drug-menu,
+.app-shell.dashboard-shell .modal {
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(239, 247, 255, 0.18));
+}
+
+.app-shell.dashboard-shell .nav a,
+.app-shell.dashboard-shell .sidebar-toggle,
+.app-shell.dashboard-shell .sidebar-action,
+.app-shell.dashboard-shell .sidebar-action-icon,
+.app-shell.dashboard-shell .status-banner,
+.app-shell.dashboard-shell .date-trigger,
+.app-shell.dashboard-shell .nav-btn,
+.app-shell.dashboard-shell .drug-input-wrap,
+.app-shell.dashboard-shell .drug-option,
+.app-shell.dashboard-shell .button,
+.app-shell.dashboard-shell .table-action-btn,
+.app-shell.dashboard-shell .order-qty-input,
+.app-shell.dashboard-shell .modal-close {
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(248, 252, 255, 0.14));
+}
+
+.app-shell.dashboard-shell .status-banner {
+	border-color: rgba(255, 255, 255, 0.56);
+}
+
+.app-shell.dashboard-shell .status-banner-popover {
+	background: linear-gradient(180deg, rgba(25, 41, 62, 0.72), rgba(13, 23, 36, 0.56));
+	border: 1px solid rgba(255, 255, 255, 0.16);
+	box-shadow: 0 22px 54px rgba(6, 17, 29, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+	backdrop-filter: blur(28px) saturate(165%) contrast(108%);
+	-webkit-backdrop-filter: blur(28px) saturate(165%) contrast(108%);
+}
+
+.app-shell.dashboard-shell .status-banner-popover::before {
+	background: rgba(18, 31, 47, 0.72);
+}
+
+.app-shell.dashboard-shell .nav a {
+	border-color: rgba(255, 255, 255, 0.42);
+}
+
+.app-shell.dashboard-shell .nav a.active,
+.app-shell.dashboard-shell .nav a:hover,
+.app-shell.dashboard-shell .status-banner.is-clickable:hover,
+.app-shell.dashboard-shell .sidebar-toggle:hover,
+.app-shell.dashboard-shell .sidebar-action:hover,
+.app-shell.dashboard-shell .sidebar-action-icon:hover,
+.app-shell.dashboard-shell .nav-btn:hover,
+.app-shell.dashboard-shell .drug-option:hover,
+.app-shell.dashboard-shell .button:hover,
+.app-shell.dashboard-shell .table-action-btn:hover,
+.app-shell.dashboard-shell .modal-close:hover {
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.38), rgba(247, 252, 255, 0.18));
+	border-color: rgba(255, 255, 255, 0.64);
+	box-shadow:
+		var(--liquid-shadow-hover),
+		inset 0 1px 0 rgba(255, 255, 255, 0.76),
+		inset 0 -1px 0 rgba(255, 255, 255, 0.18);
+	transform: translateY(-1px);
+}
+
+.app-shell.dashboard-shell .nav a.active,
+.app-shell.dashboard-shell .drug-option.selected,
+.app-shell.dashboard-shell .date-grid button.selected,
+.app-shell.dashboard-shell .table-action-btn,
+.app-shell.dashboard-shell .button {
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(204, 236, 255, 0.22));
+	border-color: rgba(255, 255, 255, 0.66);
+	box-shadow:
+		0 20px 46px rgba(41, 95, 150, 0.18),
+		inset 0 1px 0 rgba(255, 255, 255, 0.82),
+		inset 0 -18px 26px rgba(116, 190, 255, 0.12);
+}
+
+.app-shell.dashboard-shell .date-grid button,
+.app-shell.dashboard-shell .drug-option,
+.app-shell.dashboard-shell .modal-close,
+.app-shell.dashboard-shell .nav-btn {
+	transition:
+		background 0.22s ease,
+		border-color 0.22s ease,
+		box-shadow 0.22s ease,
+		transform 0.22s ease,
+		color 0.22s ease;
+}
+
+.app-shell.dashboard-shell .date-grid button {
+	border: 1px solid transparent;
+	background: rgba(255, 255, 255, 0.08);
+}
+
+.app-shell.dashboard-shell .date-grid button:hover,
+.app-shell.dashboard-shell .date-grid button.today {
+	border-color: rgba(255, 255, 255, 0.42);
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(235, 246, 255, 0.14));
+}
+
+.app-shell.dashboard-shell .date-grid button.selected,
+.app-shell.dashboard-shell .drug-option.highlighted {
+	outline: none;
+	color: var(--ink);
+}
+
+.app-shell.dashboard-shell .date-grid button.today {
+	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.26);
+}
+
+.app-shell.dashboard-shell .drug-input-wrap,
+.app-shell.dashboard-shell .drug-menu,
+.app-shell.dashboard-shell .date-panel,
+.app-shell.dashboard-shell .modal {
+	border-color: rgba(255, 255, 255, 0.58);
+}
+
+.app-shell.dashboard-shell .drug-caret,
+.app-shell.dashboard-shell .modal-close,
+.app-shell.dashboard-shell .nav-btn {
+	color: rgba(31, 43, 58, 0.72);
+}
+
+.app-shell.dashboard-shell .button,
+.app-shell.dashboard-shell .table-action-btn {
+	color: var(--ink);
+}
+
+.app-shell.dashboard-shell .button {
+	box-shadow:
+		0 22px 44px rgba(44, 100, 159, 0.18),
+		inset 0 1px 0 rgba(255, 255, 255, 0.84),
+		inset 0 -18px 26px rgba(95, 183, 255, 0.14);
+}
+
+.app-shell.dashboard-shell .order-submit-btn {
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.44), rgba(255, 207, 207, 0.22));
+	border-color: rgba(255, 223, 223, 0.66);
+	box-shadow:
+		0 22px 46px rgba(189, 83, 83, 0.16),
+		inset 0 1px 0 rgba(255, 255, 255, 0.82),
+		inset 0 -18px 26px rgba(255, 143, 143, 0.1);
+	color: #8d2626;
+}
+
+.app-shell.dashboard-shell .status-banner.is-warn,
+.app-shell.dashboard-shell .sidebar-logout,
+.app-shell.dashboard-shell .sidebar-action-icon.sidebar-logout {
+	border-color: rgba(255, 218, 218, 0.62);
+}
+
+.app-shell.dashboard-shell .sidebar-logout,
+.app-shell.dashboard-shell .sidebar-action-icon.sidebar-logout,
+.app-shell.dashboard-shell .status-dot.is-warn,
+.app-shell.dashboard-shell .order-submit-btn:hover {
+	color: #9c3131;
+}
+
+.app-shell.dashboard-shell .modal-backdrop {
+	background:
+		radial-gradient(circle at var(--liquid-light-x) var(--liquid-light-y), rgba(197, 234, 255, 0.24), transparent 34%),
+		rgba(11, 20, 34, 0.18);
+	backdrop-filter: blur(18px) saturate(150%);
+	-webkit-backdrop-filter: blur(18px) saturate(150%);
+}
+
+.app-shell.dashboard-shell .modal-header,
+.app-shell.dashboard-shell .modal-footer {
+	border-color: rgba(255, 255, 255, 0.24);
+}
+
+.app-shell.dashboard-shell .modal-content {
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(223, 238, 255, 0.08));
+}
+
+.app-shell.dashboard-shell .drug-option-id,
+.app-shell.dashboard-shell .drug-empty,
+.app-shell.dashboard-shell .date-pill-label,
+.app-shell.dashboard-shell .status-banner-preview {
+	color: rgba(31, 43, 58, 0.62);
+}
+
+.app-shell.dashboard-shell .date-pill-value,
+.app-shell.dashboard-shell .status-banner-title,
+.app-shell.dashboard-shell .drug-option-name {
+	text-shadow: 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.app-shell.dashboard-shell .order-qty-input {
+	color: var(--ink);
+}
+
+.app-shell.dashboard-shell .order-qty-input::placeholder,
+.app-shell.dashboard-shell .drug-input::placeholder {
+	color: rgba(31, 43, 58, 0.44);
+}
+
+.app-shell.dashboard-shell .sidebar-toggle:focus-visible,
+.app-shell.dashboard-shell .sidebar-action:focus-visible,
+.app-shell.dashboard-shell .sidebar-action-icon:focus-visible,
+.app-shell.dashboard-shell .nav a:focus-visible,
+.app-shell.dashboard-shell .button:focus-visible,
+.app-shell.dashboard-shell .table-action-btn:focus-visible,
+.app-shell.dashboard-shell .modal-close:focus-visible,
+.app-shell.dashboard-shell .nav-btn:focus-visible,
+.app-shell.dashboard-shell .drug-input:focus-visible,
+.app-shell.dashboard-shell .date-trigger:focus-visible {
+	outline: none;
+	box-shadow:
+		0 0 0 1px rgba(255, 255, 255, 0.8),
+		0 0 0 4px rgba(145, 212, 255, 0.3),
+		var(--liquid-shadow-hover);
+}
+
+.app-shell.dashboard-shell > .main {
+	overflow: hidden;
+}
+
+.app-shell.dashboard-shell .sidebar {
+	height: 100%;
+	max-height: 100%;
+}
+
+.app-shell.dashboard-shell .topbar {
+	flex-shrink: 0;
+}
+
+.app-shell.dashboard-shell .content {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.app-shell.dashboard-shell,
+	.app-shell.dashboard-shell::before,
+	.app-shell.dashboard-shell::after,
+	.app-shell.dashboard-shell :is(
+		.sidebar,
+		.topbar,
+		.card,
+		.status-banner,
+		.nav a,
+		.sidebar-toggle,
+		.sidebar-action,
+		.sidebar-action-icon,
+		.date-trigger,
+		.date-panel,
+		.nav-btn,
+		.drug-input-wrap,
+		.drug-menu,
+		.drug-option,
+		.button,
+		.table-action-btn,
+		.order-qty-input,
+		.modal,
+		.modal-close
+	) {
+		transition: none;
+	}
+
+	.app-shell.dashboard-shell {
+		--liquid-refract-x: 0px;
+		--liquid-refract-y: 0px;
+		--liquid-sheen-opacity: 0.42;
+	}
+
+	.app-shell.dashboard-shell::after,
+	.app-shell.dashboard-shell :is(
+		.sidebar,
+		.topbar,
+		.card,
+		.status-banner,
+		.nav a,
+		.sidebar-toggle,
+		.sidebar-action,
+		.sidebar-action-icon,
+		.date-trigger,
+		.date-panel,
+		.nav-btn,
+		.drug-input-wrap,
+		.drug-menu,
+		.drug-option,
+		.button,
+		.table-action-btn,
+		.order-qty-input,
+		.modal,
+		.modal-close
+	)::before {
+		transform: none;
+	}
+
+	.app-shell.dashboard-shell :is(
+		.nav a:hover,
+		.status-banner.is-clickable:hover,
+		.sidebar-toggle:hover,
+		.sidebar-action:hover,
+		.sidebar-action-icon:hover,
+		.nav-btn:hover,
+		.drug-option:hover,
+		.button:hover,
+		.table-action-btn:hover,
+		.modal-close:hover
+	) {
+		transform: none;
+	}
+}
+
+.liquid-ambient {
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+	z-index: 0;
+	overflow: hidden;
+	background:
+		radial-gradient(circle at 18% 16%, rgba(255, 255, 255, 0.92), transparent 26%),
+		radial-gradient(circle at 82% 12%, rgba(189, 230, 255, 0.34), transparent 24%),
+		radial-gradient(circle at 72% 88%, rgba(142, 206, 255, 0.22), transparent 22%),
+		linear-gradient(152deg, rgba(244, 249, 255, 0.98), rgba(227, 239, 252, 0.96) 56%, rgba(236, 242, 248, 0.94));
+}
+
+.liquid-ambient::before,
+.liquid-ambient::after {
+	content: '';
+	position: absolute;
+	inset: -12%;
+	background-repeat: no-repeat;
+	filter: blur(44px);
+	mix-blend-mode: screen;
+	opacity: 0.86;
+	animation: ambient-drift 16s ease-in-out infinite alternate;
+}
+
+.liquid-ambient::before {
+	background:
+		radial-gradient(circle at 24% 24%, rgba(255, 255, 255, 0.66), transparent 22%),
+		radial-gradient(circle at 78% 38%, rgba(151, 219, 255, 0.28), transparent 18%),
+		radial-gradient(circle at 48% 78%, rgba(106, 190, 255, 0.16), transparent 20%);
+}
+
+.liquid-ambient::after {
+	background:
+		radial-gradient(circle at 14% 86%, rgba(141, 209, 255, 0.24), transparent 18%),
+		radial-gradient(circle at 88% 76%, rgba(255, 255, 255, 0.54), transparent 16%),
+		linear-gradient(135deg, rgba(255, 255, 255, 0.16), transparent 34%, rgba(110, 194, 255, 0.08) 58%, transparent 78%);
+	animation-duration: 20s;
+	animation-direction: alternate-reverse;
+}
+
+.ambient-glow {
+	position: absolute;
+	transform: translate(-50%, -50%);
+	border-radius: 999px;
+	mix-blend-mode: screen;
+	animation: ambient-glow-blink 8.4s ease-in-out infinite;
+	will-change: opacity, transform;
+}
+
+.ambient-glow-ice {
+	background: radial-gradient(circle, rgba(255, 255, 255, 0.96) 0%, rgba(211, 240, 255, 0.62) 32%, transparent 72%);
+}
+
+.ambient-glow-blue {
+	background: radial-gradient(circle, rgba(181, 230, 255, 0.86) 0%, rgba(103, 190, 255, 0.36) 34%, transparent 72%);
+}
+
+.ambient-glow-mist {
+	background: radial-gradient(circle, rgba(255, 255, 255, 0.82) 0%, rgba(148, 213, 255, 0.26) 36%, transparent 74%);
+}
+
+@keyframes ambient-glow-blink {
+	0%,
+	100% {
+		transform: translate(-50%, -50%) scale(0.86);
+		opacity: 0.06;
+	}
+
+	35% {
+		transform: translate(-50%, -50%) scale(1.06);
+		opacity: 0.26;
+	}
+
+	60% {
+		transform: translate(-50%, -50%) scale(0.94);
+		opacity: 0.12;
+	}
+}
+
+@keyframes ambient-drift {
+	0% {
+		transform: translate3d(-1%, -1%, 0) scale(1);
+	}
+
+	100% {
+		transform: translate3d(1%, 2%, 0) scale(1.03);
+	}
+}
+
+.app-shell.liquid-shell,
+.login-shell.liquid-login {
+	--liquid-sheen-angle: 132deg;
+	--liquid-sheen-opacity: 0.52;
+	--liquid-surface-edge: rgba(255, 255, 255, 0.54);
+	--liquid-surface-edge-strong: rgba(255, 255, 255, 0.78);
+	--liquid-shadow: 0 24px 60px rgba(33, 74, 122, 0.14), 0 12px 26px rgba(20, 48, 87, 0.08);
+	--liquid-shadow-hover: 0 30px 72px rgba(33, 74, 122, 0.18), 0 16px 30px rgba(20, 48, 87, 0.1);
+	position: relative;
+	z-index: 1;
+	background: transparent;
+}
+
+.app-shell.liquid-shell::before,
+.app-shell.liquid-shell::after {
+	content: none;
+}
+
+.login-shell.liquid-login {
+	position: relative;
+	z-index: 1;
+	background: transparent;
+}
+
+.app-shell.liquid-shell > .sidebar,
+.app-shell.liquid-shell > .main {
+	position: relative;
+	z-index: 1;
+}
+
+.app-shell.liquid-shell :is(
+	.sidebar,
+	.topbar,
+	.card,
+	.status-banner,
+	.nav a,
+	.sidebar-toggle,
+	.sidebar-action,
+	.sidebar-action-icon,
+	.date-trigger,
+	.date-panel,
+	.nav-btn,
+	.drug-input-wrap,
+	.drug-menu,
+	.drug-option,
+	.button,
+	.table-action-btn,
+	.modal,
+	.modal-close,
+	.file-button,
+	.file-button-icon,
+	.order-filter,
+	.order-filter button,
+	.order-card,
+	.order-detail-item,
+	.list-item
+),
+.login-shell.liquid-login :is(.login-card, .button) {
+	position: relative;
+	overflow: hidden;
+	isolation: isolate;
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.14));
+	border: 1px solid var(--liquid-surface-edge);
+	box-shadow:
+		var(--liquid-shadow),
+		inset 0 1px 0 rgba(255, 255, 255, 0.66),
+		inset 0 -1px 0 rgba(255, 255, 255, 0.12);
+	backdrop-filter: blur(34px) saturate(188%) contrast(106%) brightness(1.03);
+	-webkit-backdrop-filter: blur(34px) saturate(188%) contrast(106%) brightness(1.03);
+	transition:
+		background 0.22s ease,
+		border-color 0.22s ease,
+		box-shadow 0.22s ease,
+		transform 0.22s ease,
+		color 0.22s ease;
+}
+
+.app-shell.liquid-shell :is(
+	.sidebar,
+	.topbar,
+	.card,
+	.status-banner,
+	.nav a,
+	.sidebar-toggle,
+	.sidebar-action,
+	.sidebar-action-icon,
+	.date-trigger,
+	.date-panel,
+	.nav-btn,
+	.drug-input-wrap,
+	.drug-menu,
+	.drug-option,
+	.button,
+	.table-action-btn,
+	.modal,
+	.modal-close,
+	.file-button,
+	.file-button-icon,
+	.order-filter,
+	.order-filter button,
+	.order-card,
+	.order-detail-item,
+	.list-item
+)::before,
+.app-shell.liquid-shell :is(
+	.sidebar,
+	.topbar,
+	.card,
+	.status-banner,
+	.nav a,
+	.sidebar-toggle,
+	.sidebar-action,
+	.sidebar-action-icon,
+	.date-trigger,
+	.date-panel,
+	.nav-btn,
+	.drug-input-wrap,
+	.drug-menu,
+	.drug-option,
+	.button,
+	.table-action-btn,
+	.modal,
+	.modal-close,
+	.file-button,
+	.file-button-icon,
+	.order-filter,
+	.order-filter button,
+	.order-card,
+	.order-detail-item,
+	.list-item
+)::after,
+.login-shell.liquid-login :is(.login-card, .button)::before,
+.login-shell.liquid-login :is(.login-card, .button)::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	pointer-events: none;
+}
+
+.app-shell.liquid-shell :is(
+	.sidebar,
+	.topbar,
+	.card,
+	.status-banner,
+	.nav a,
+	.sidebar-toggle,
+	.sidebar-action,
+	.sidebar-action-icon,
+	.date-trigger,
+	.date-panel,
+	.nav-btn,
+	.drug-input-wrap,
+	.drug-menu,
+	.drug-option,
+	.button,
+	.table-action-btn,
+	.modal,
+	.modal-close,
+	.file-button,
+	.file-button-icon,
+	.order-filter,
+	.order-filter button,
+	.order-card,
+	.order-detail-item,
+	.list-item
+)::before,
+.login-shell.liquid-login :is(.login-card, .button)::before {
+	background:
+		radial-gradient(130% 120% at 18% 10%, rgba(255, 255, 255, 0.74), transparent 34%),
+		linear-gradient(var(--liquid-sheen-angle), rgba(255, 255, 255, 0.48), rgba(255, 255, 255, 0.08) 24%, rgba(137, 215, 255, 0.18) 52%, rgba(255, 255, 255, 0.1) 74%, rgba(255, 255, 255, 0.56)),
+		radial-gradient(120% 100% at 88% 86%, rgba(115, 196, 255, 0.14), transparent 46%);
+	opacity: var(--liquid-sheen-opacity);
+	mix-blend-mode: screen;
+}
+
+.app-shell.liquid-shell :is(
+	.sidebar,
+	.topbar,
+	.card,
+	.status-banner,
+	.nav a,
+	.sidebar-toggle,
+	.sidebar-action,
+	.sidebar-action-icon,
+	.date-trigger,
+	.date-panel,
+	.nav-btn,
+	.drug-input-wrap,
+	.drug-menu,
+	.drug-option,
+	.button,
+	.table-action-btn,
+	.modal,
+	.modal-close,
+	.file-button,
+	.file-button-icon,
+	.order-filter,
+	.order-filter button,
+	.order-card,
+	.order-detail-item,
+	.list-item
+)::after,
+.login-shell.liquid-login :is(.login-card, .button)::after {
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 42%, rgba(111, 194, 255, 0.08));
+	box-shadow:
+		inset 0 1px 0 var(--liquid-surface-edge-strong),
+		inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+		inset 0 -22px 30px rgba(110, 186, 255, 0.04);
+	opacity: 0.9;
+}
+
+.app-shell.liquid-shell :is(.sidebar, .topbar, .card, .modal, .date-panel, .drug-menu, .order-card),
+.login-shell.liquid-login .login-card {
+	border-radius: 0;
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(239, 247, 255, 0.18));
+}
+
+.app-shell.liquid-shell :is(
+	.nav a,
+	.sidebar-toggle,
+	.sidebar-action,
+	.sidebar-action-icon,
+	.status-banner,
+	.date-trigger,
+	.nav-btn,
+	.drug-input-wrap,
+	.drug-option,
+	.button,
+	.table-action-btn,
+	.modal-close,
+	.file-button,
+	.file-button-icon,
+	.order-filter,
+	.order-filter button,
+	.order-detail-item,
+	.list-item
+),
+.login-shell.liquid-login .button {
+	border-radius: 12px;
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(248, 252, 255, 0.14));
+}
+
+.app-shell.liquid-shell :is(.field input, .field select, .field textarea, .order-qty-input),
+.login-shell.liquid-login :is(.field input, .field select, .field textarea) {
+	border: 1px solid rgba(255, 255, 255, 0.58);
+	border-radius: 12px;
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(244, 250, 255, 0.18));
+	box-shadow:
+		0 18px 34px rgba(39, 80, 125, 0.08),
+		inset 0 1px 0 rgba(255, 255, 255, 0.78),
+		inset 0 -1px 0 rgba(255, 255, 255, 0.14);
+	backdrop-filter: blur(24px) saturate(170%);
+	-webkit-backdrop-filter: blur(24px) saturate(170%);
+	color: var(--ink);
+}
+
+.app-shell.liquid-shell .status-banner-popover {
+	background: linear-gradient(180deg, rgba(25, 41, 62, 0.72), rgba(13, 23, 36, 0.56));
+	border: 1px solid rgba(255, 255, 255, 0.16);
+	box-shadow: 0 22px 54px rgba(6, 17, 29, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+	backdrop-filter: blur(28px) saturate(165%) contrast(108%);
+	-webkit-backdrop-filter: blur(28px) saturate(165%) contrast(108%);
+}
+
+.app-shell.liquid-shell .status-banner-popover::before {
+	background: rgba(18, 31, 47, 0.72);
+}
+
+.app-shell.liquid-shell :is(.nav a.active, .drug-option.selected, .date-grid button.selected, .table-action-btn, .button, .order-filter button.active),
+.login-shell.liquid-login .button {
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.44), rgba(204, 236, 255, 0.22));
+	border-color: rgba(255, 255, 255, 0.66);
+	box-shadow:
+		0 20px 46px rgba(41, 95, 150, 0.16),
+		inset 0 1px 0 rgba(255, 255, 255, 0.82),
+		inset 0 -18px 26px rgba(116, 190, 255, 0.12);
+	color: var(--ink);
+}
+
+.app-shell.liquid-shell .nav a {
+	min-height: 40px;
+	box-shadow: none;
+}
+
+.app-shell.liquid-shell :is(
+	.nav a.active,
+	.nav a:hover,
+	.status-banner.is-clickable:hover,
+	.sidebar-toggle:hover,
+	.sidebar-action:hover,
+	.sidebar-action-icon:hover,
+	.nav-btn:hover,
+	.drug-option:hover,
+	.button:hover,
+	.table-action-btn:hover,
+	.modal-close:hover,
+	.file-button:hover,
+	.order-filter button:hover,
+	.order-card:hover
+),
+.login-shell.liquid-login .button:hover {
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.38), rgba(247, 252, 255, 0.18));
+	border-color: rgba(255, 255, 255, 0.66);
+	box-shadow:
+		var(--liquid-shadow-hover),
+		inset 0 1px 0 rgba(255, 255, 255, 0.76),
+		inset 0 -1px 0 rgba(255, 255, 255, 0.18);
+	transform: translateY(-1px);
+}
+
+.app-shell.liquid-shell .nav a.active,
+.app-shell.liquid-shell .nav a:hover {
+	box-shadow: none;
+	transform: none;
+}
+
+.app-shell.liquid-shell .date-grid button {
+	border: 1px solid transparent;
+	border-radius: 10px;
+	background: rgba(255, 255, 255, 0.08);
+	transition:
+		background 0.22s ease,
+		border-color 0.22s ease,
+		box-shadow 0.22s ease,
+		transform 0.22s ease,
+		color 0.22s ease;
+}
+
+.app-shell.liquid-shell .date-grid button:hover,
+.app-shell.liquid-shell .date-grid button.today {
+	border-color: rgba(255, 255, 255, 0.42);
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(235, 246, 255, 0.14));
+}
+
+.app-shell.liquid-shell .date-grid button.selected,
+.app-shell.liquid-shell .drug-option.highlighted {
+	outline: none;
+	color: var(--ink);
+}
+
+.app-shell.liquid-shell .date-grid button.today {
+	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.26);
+}
+
+.app-shell.liquid-shell .drug-caret,
+.app-shell.liquid-shell .modal-close,
+.app-shell.liquid-shell .nav-btn,
+.app-shell.liquid-shell .order-filter button,
+.login-shell.liquid-login .muted {
+	color: rgba(31, 43, 58, 0.72);
+}
+
+.app-shell.liquid-shell .drug-option-id,
+.app-shell.liquid-shell .drug-empty,
+.app-shell.liquid-shell .date-pill-label,
+.app-shell.liquid-shell .status-banner-preview,
+.app-shell.liquid-shell .order-summary-key,
+.app-shell.liquid-shell .order-detail-label,
+.login-shell.liquid-login .login-actions,
+.login-shell.liquid-login .login-actions .muted {
+	color: rgba(31, 43, 58, 0.62);
+}
+
+.app-shell.liquid-shell .date-pill-value,
+.app-shell.liquid-shell .status-banner-title,
+.app-shell.liquid-shell .drug-option-name,
+.app-shell.liquid-shell .order-summary-value,
+.login-shell.liquid-login .brand-logo {
+	text-shadow: 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.app-shell.liquid-shell .chart-empty-overlay,
+.app-shell.liquid-shell .list-item {
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(240, 248, 255, 0.14));
+	border: 1px solid rgba(255, 255, 255, 0.42);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.64);
+}
+
+.app-shell.liquid-shell .file-button-icon {
+	color: var(--primary-strong);
+}
+
+.app-shell.liquid-shell .order-submit-btn {
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.44), rgba(255, 207, 207, 0.22));
+	border-color: rgba(255, 223, 223, 0.66);
+	box-shadow:
+		0 22px 46px rgba(189, 83, 83, 0.16),
+		inset 0 1px 0 rgba(255, 255, 255, 0.82),
+		inset 0 -18px 26px rgba(255, 143, 143, 0.1);
+	color: #8d2626;
+}
+
+.app-shell.liquid-shell :is(.status-banner.is-warn, .sidebar-logout, .sidebar-action-icon.sidebar-logout),
+.app-shell.liquid-shell .order-submit-btn:hover {
+	border-color: rgba(255, 218, 218, 0.62);
+	color: #9c3131;
+}
+
+.app-shell.liquid-shell .modal-backdrop {
+	background:
+		radial-gradient(circle at 18% 16%, rgba(197, 234, 255, 0.24), transparent 34%),
+		rgba(11, 20, 34, 0.18);
+	backdrop-filter: blur(18px) saturate(150%);
+	-webkit-backdrop-filter: blur(18px) saturate(150%);
+}
+
+.app-shell.liquid-shell .modal-header,
+.app-shell.liquid-shell .modal-footer {
+	border-color: rgba(255, 255, 255, 0.24);
+}
+
+.app-shell.liquid-shell .modal-content {
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(223, 238, 255, 0.08));
+}
+
+.app-shell.liquid-shell :is(.sidebar-toggle, .sidebar-action, .sidebar-action-icon, .nav a, .button, .table-action-btn, .modal-close, .nav-btn, .drug-input, .date-trigger, .field input, .field select, .field textarea, .order-qty-input, .file-button, .order-filter button):focus-visible,
+.login-shell.liquid-login :is(.button, .field input, .field select, .field textarea):focus-visible {
+	outline: none;
+	box-shadow:
+		0 0 0 1px rgba(255, 255, 255, 0.82),
+		0 0 0 4px rgba(145, 212, 255, 0.3),
+		var(--liquid-shadow-hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.liquid-ambient::before,
+	.liquid-ambient::after,
+	.ambient-glow,
+	.app-shell.liquid-shell :is(.nav a, .status-banner.is-clickable, .sidebar-toggle, .sidebar-action, .sidebar-action-icon, .nav-btn, .drug-option, .button, .table-action-btn, .modal-close, .file-button, .order-filter button, .order-card),
+	.login-shell.liquid-login .button {
+		animation: none;
+		transition: none;
+	}
+
+	.ambient-glow {
+		opacity: 0.12;
+		transform: translate(-50%, -50%) scale(0.94);
+	}
+
+	.app-shell.liquid-shell :is(.nav a:hover, .status-banner.is-clickable:hover, .sidebar-toggle:hover, .sidebar-action:hover, .sidebar-action-icon:hover, .nav-btn:hover, .drug-option:hover, .button:hover, .table-action-btn:hover, .modal-close:hover, .file-button:hover, .order-filter button:hover, .order-card:hover),
+	.login-shell.liquid-login .button:hover {
+		transform: none;
+	}
 }
 
 .grid-2 {
@@ -771,16 +2140,89 @@ img {
 
 @media (max-width: 1080px) {
 	.app-shell {
-		grid-template-columns: 1fr;
+		grid-template-columns: 224px minmax(0, 1fr);
+		gap: 18px;
+		padding: 18px;
 	}
 
 	.app-shell.sidebar-collapsed {
+		grid-template-columns: 72px minmax(0, 1fr);
+	}
+
+	.sidebar {
+		padding: 24px 18px;
+		gap: 22px;
+	}
+
+	.brand-logo {
+		max-width: 180px;
+	}
+
+	.app-shell.dashboard-shell {
+		padding: 18px;
+		gap: 18px;
+	}
+
+	.topbar-row {
+		flex-wrap: wrap;
+	}
+
+	.status-banner-marquee {
+		flex-basis: 100%;
+	}
+
+	.grid-4 {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+@media (max-width: 720px) {
+	.app-shell,
+	.app-shell.sidebar-collapsed {
 		grid-template-columns: 1fr;
+		height: auto;
+		max-height: none;
+		padding: 16px;
+		gap: 16px;
+		overflow: visible;
+	}
+
+	.app-shell.dashboard-shell {
+		width: 100%;
+		max-width: 100%;
+		height: auto;
+		max-height: none;
+		overflow: visible;
 	}
 
 	.sidebar {
 		flex-direction: row;
 		flex-wrap: wrap;
+		height: auto;
+		max-height: none;
+		padding: 18px;
+		gap: 16px;
+	}
+
+	.sidebar-header {
+		width: 100%;
+	}
+
+	.sidebar-body {
+		width: 100%;
+		flex: 0 0 auto;
+		overflow: visible;
+	}
+
+	.nav {
+		width: 100%;
+		flex-direction: row;
+		flex-wrap: wrap;
+		flex: 0 0 auto;
+	}
+
+	.nav a {
+		flex: 1 1 140px;
 	}
 
 	.app-shell.sidebar-collapsed .sidebar {
@@ -807,6 +2249,7 @@ img {
 	}
 
 	.app-shell.sidebar-collapsed .nav a {
+		flex: 0 0 auto;
 		padding: 10px 12px;
 	}
 
@@ -814,9 +2257,13 @@ img {
 		display: none;
 	}
 
-	.sidebar-footer,
+	.sidebar-calendar {
+		display: none;
+	}
+
 	.sidebar-controls {
 		width: 100%;
+		margin-top: 0;
 	}
 
 	.app-shell.sidebar-collapsed .sidebar-controls-collapsed {
@@ -827,20 +2274,11 @@ img {
 		margin-top: 0;
 	}
 
-	.topbar-row {
-		flex-wrap: wrap;
+	.app-shell.dashboard-shell > .main,
+	.app-shell.dashboard-shell .content {
+		overflow: visible;
 	}
 
-	.status-banner-marquee {
-		flex-basis: 100%;
-	}
-
-	.grid-4 {
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-	}
-}
-
-@media (max-width: 720px) {
 	.grid-2,
 	.grid-3,
 	.grid-4,
