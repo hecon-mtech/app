@@ -1,8 +1,3 @@
-# General
-1. Add home button. Reduce the main logo's upper margin
-2. Simplify OAuth process - capture the redirection URL and automatically paste it? Can you do that? 
-3. Are the banner stil used? If the component's form has changed but its name hasn't, identify and change it. 
-
 # Data insertion
 1. 
 

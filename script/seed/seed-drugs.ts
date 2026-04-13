@@ -6,7 +6,7 @@ import { Pool } from 'pg';
 
 const filePath = process.argv[2]
 	? path.resolve(process.argv[2])
-	: path.resolve('script/seed/ATC_20250912_110516.csv');
+	: path.resolve('script/data/ATC_20250912_110516.csv');
 
 const dbConfig = {
 	host: process.env.DB_HOST ?? '127.0.0.1',

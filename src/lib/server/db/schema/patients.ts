@@ -1,7 +1,8 @@
-import { integer, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { boolean, integer, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { users } from './users';
 
 export const patientTypeEnum = pgEnum('patient_type', ['inpatient', 'outpatient']);
+export const patientSexEnum = pgEnum('patient_sex', ['male', 'female', 'unknown']);
 
 export const patients = pgTable('patients', {
 	id: serial('id').primaryKey(),
@@ -9,14 +10,13 @@ export const patients = pgTable('patients', {
 		.references(() => users.id)
 		.notNull(),
 	patientId: integer('patient_id').notNull(),
-	visitDate: timestamp('visit_date').notNull(),
+	visitDateStr: text('visit_date_str').notNull(),
 	type: patientTypeEnum('type').notNull(),
-	sex: integer('sex').notNull(),
+	sex: patientSexEnum('sex').notNull(),
 	age: integer('age').notNull(),
-	primaryDiagnosis: text('primary_diagnosis').notNull(),
-	secondaryDiagnosis: text('secondary_diagnosis').notNull(),
-	prescription: text('prescription').notNull(),
-	department: text('department').notNull(),
+	diagnosisCode: text('diagnosis_code').notNull(), // KCD code
+	isPrimaryDiagnosis: boolean('is_primary_diagnosis').notNull(),
+	departmentStr: text('department_str').notNull(),
 	createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 	updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 });

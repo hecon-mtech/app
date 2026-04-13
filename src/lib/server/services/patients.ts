@@ -9,6 +9,8 @@ import { getRepresentativeDrugsByAtcPrefixes } from '$lib/server/db/drug-groups'
 import { inventory, patients } from '$lib/server/db/schema';
 import { ServiceError } from './errors';
 
+type PatientSex = typeof patients.$inferInsert.sex;
+
 const EMS_START_DATE = '2024-12-01';
 const EMS_END_DATE = '2024-12-07';
 
@@ -51,6 +53,18 @@ const toDateStr = (value: Date) => {
 };
 
 const toText = (value: unknown) => String(value ?? '').trim();
+
+const toPatientSex = (value: unknown): PatientSex | null => {
+	if (value === 1 || value === '1') return 'male';
+	if (value === 2 || value === '2') return 'female';
+
+	const normalized = String(value ?? '').trim().toLowerCase();
+	if (normalized === 'male' || normalized === 'm') return 'male';
+	if (normalized === 'female' || normalized === 'f') return 'female';
+	if (normalized === 'unknown' || normalized === '') return 'unknown';
+
+	return null;
+};
 
 const isInEmsRange = (date: Date) => {
 	const dateStr = toDateStr(date);
@@ -96,11 +110,9 @@ const readPatientsFromParquet = async (
 		const now = new Date();
 		const patientId = toInteger(row.id);
 		const visitDate = toDate(row.date);
-		const sex = toInteger(row.sex);
+		const sex = toPatientSex(row.sex);
 		const age = toInteger(row.age);
 		const primaryDiagnosis = toText(row.primary_diagnosis);
-		const secondaryDiagnosis = toText(row.secondary_diagnosis);
-		const prescription = toText(row.prescription);
 		const department = toText(row.department);
 
 		if (
@@ -109,8 +121,6 @@ const readPatientsFromParquet = async (
 			sex === null ||
 			age === null ||
 			!primaryDiagnosis ||
-			!secondaryDiagnosis ||
-			!prescription ||
 			!department ||
 			!isInEmsRange(visitDate)
 		) {
@@ -120,20 +130,19 @@ const readPatientsFromParquet = async (
 		patientRows.push({
 			hospitalId,
 			patientId,
-			visitDate,
+			visitDateStr: toDateStr(visitDate),
 			type,
 			sex,
 			age,
-			primaryDiagnosis,
-			secondaryDiagnosis,
-			prescription,
-			department,
+			diagnosisCode: primaryDiagnosis,
+			isPrimaryDiagnosis: true,
+			departmentStr: department,
 			createdAt: now,
 			updatedAt: now
 		});
 	}
 
-	return patientRows.sort((left, right) => left.visitDate.getTime() - right.visitDate.getTime());
+	return patientRows.sort((left, right) => left.visitDateStr.localeCompare(right.visitDateStr));
 };
 
 const readEmsPatients = async (
@@ -150,12 +159,12 @@ const readEmsPatients = async (
 	const seedRows = await readPatientsFromParquet(seedFileName, hospitalId, type);
 	const fallbackRows = seedRows
 		.filter((row) => {
-			const dateStr = toDateStr(row.visitDate);
+			const dateStr = row.visitDateStr;
 			return dateStr >= '2024-11-24' && dateStr <= '2024-11-30';
 		})
 		.map((row) => ({
 			...row,
-			visitDate: shiftDays(row.visitDate, 7),
+			visitDateStr: toDateStr(shiftDays(new Date(`${row.visitDateStr}T00:00:00.000`), 7)),
 			createdAt: new Date(),
 			updatedAt: new Date()
 		}));
@@ -225,8 +234,8 @@ const readActualUsageRows = async (hospitalId: string) => {
 };
 
 export const pullEmsPatientData = async (hospitalId: string) => {
-	const rangeStart = new Date(`${EMS_START_DATE}T00:00:00.000`);
-	const rangeEnd = new Date(`${EMS_END_DATE}T23:59:59.999`);
+	const rangeStart = EMS_START_DATE;
+	const rangeEnd = EMS_END_DATE;
 
 	const [outpatientResult, inpatientResult, actualUsageRows] = await Promise.all([
 		readEmsPatients(hospitalId, 'outpatient_input_1.parquet', 'outpatient_seed.parquet', 'outpatient'),
@@ -241,8 +250,8 @@ export const pullEmsPatientData = async (hospitalId: string) => {
 				and(
 					eq(patients.hospitalId, hospitalId),
 					eq(patients.type, 'outpatient'),
-					gte(patients.visitDate, rangeStart),
-					lte(patients.visitDate, rangeEnd)
+					gte(patients.visitDateStr, rangeStart),
+					lte(patients.visitDateStr, rangeEnd)
 				)
 			);
 
@@ -252,8 +261,8 @@ export const pullEmsPatientData = async (hospitalId: string) => {
 				and(
 					eq(patients.hospitalId, hospitalId),
 					eq(patients.type, 'inpatient'),
-					gte(patients.visitDate, rangeStart),
-					lte(patients.visitDate, rangeEnd)
+					gte(patients.visitDateStr, rangeStart),
+					lte(patients.visitDateStr, rangeEnd)
 				)
 			);
 
@@ -371,11 +380,9 @@ const toUploadedPatientRows = (
 		const now = new Date();
 		const patientId = toInteger(row.id);
 		const visitDate = normalizeWorkbookDate(row.date);
-		const sex = toInteger(row.sex);
+		const sex = toPatientSex(row.sex);
 		const age = toInteger(row.age);
 		const primaryDiagnosis = toText(row.primary_diagnosis);
-		const secondaryDiagnosis = toText(row.secondary_diagnosis);
-		const prescription = toText(row.prescription);
 		const department = toText(row.department);
 
 		if (
@@ -384,8 +391,6 @@ const toUploadedPatientRows = (
 			sex === null ||
 			age === null ||
 			!primaryDiagnosis ||
-			!secondaryDiagnosis ||
-			!prescription ||
 			!department
 		) {
 			continue;
@@ -394,20 +399,19 @@ const toUploadedPatientRows = (
 		patientRows.push({
 			hospitalId,
 			patientId,
-			visitDate,
+			visitDateStr: toDateStr(visitDate),
 			type,
 			sex,
 			age,
-			primaryDiagnosis,
-			secondaryDiagnosis,
-			prescription,
-			department,
+			diagnosisCode: primaryDiagnosis,
+			isPrimaryDiagnosis: true,
+			departmentStr: department,
 			createdAt: now,
 			updatedAt: now
 		});
 	}
 
-	return patientRows.sort((left, right) => left.visitDate.getTime() - right.visitDate.getTime());
+	return patientRows.sort((left, right) => left.visitDateStr.localeCompare(right.visitDateStr));
 };
 
 const readPatientsFromParquetBuffer = async (
@@ -494,8 +498,8 @@ export const importUploadedPatientData = async ({
 		throw new ServiceError(400, '업로드 파일에서 저장 가능한 환자 데이터를 찾지 못했습니다.');
 	}
 
-	const startDate = rows[0]?.visitDate;
-	const endDate = rows[rows.length - 1]?.visitDate;
+	const startDate = rows[0]?.visitDateStr;
+	const endDate = rows[rows.length - 1]?.visitDateStr;
 	if (!startDate || !endDate) {
 		throw new ServiceError(400, '업로드 파일의 방문일 정보를 해석하지 못했습니다.');
 	}
@@ -507,8 +511,8 @@ export const importUploadedPatientData = async ({
 				and(
 					eq(patients.hospitalId, hospitalId),
 					eq(patients.type, type),
-					gte(patients.visitDate, startDate),
-					lte(patients.visitDate, endDate)
+					gte(patients.visitDateStr, startDate),
+					lte(patients.visitDateStr, endDate)
 				)
 			);
 
@@ -521,8 +525,8 @@ export const importUploadedPatientData = async ({
 		message: `${type === 'inpatient' ? '입원' : '외래'} 환자 데이터 ${rows.length}건을 반영했습니다.`,
 		patientType: type,
 		insertedCount: rows.length,
-		startDate: toDateStr(startDate),
-		endDate: toDateStr(endDate),
+		startDate,
+		endDate,
 		fileName: normalizedFileName
 	};
 };

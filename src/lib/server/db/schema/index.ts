@@ -4,3 +4,4 @@ export * from './inventory';
 export * from './auctions';
 export * from './patients';
 export * from './messaging';
+export * from './calendar';

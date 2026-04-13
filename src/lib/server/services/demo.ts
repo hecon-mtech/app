@@ -42,7 +42,7 @@ export const resetDemoData = async (hospitalId: string) => {
 			.where(
 				and(
 					eq(patients.hospitalId, hospitalId),
-					gte(patients.visitDate, toTimestampRange(REMOVE_ACTUAL_AND_PATIENT_AFTER))
+					gte(patients.visitDateStr, REMOVE_ACTUAL_AND_PATIENT_AFTER)
 				)
 			);
 
