@@ -8,7 +8,7 @@ This project keeps a strict server boundary:
 
 ## Endpoints
 
-- `GET /api/banner-items`: `docs/api/banner-items.md`
+- `GET /api/alarm-items`: `docs/api/alarm-items.md`
 - `GET /api/drug-associations`: `docs/api/drug-associations.md`
 - `POST /api/auction-reg`: `docs/api/auction-reg.md`
 - `GET /api/usage-forecast`: `docs/api/usage-forecast.md`

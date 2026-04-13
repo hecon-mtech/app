@@ -109,7 +109,7 @@ img {
 
 .sidebar-header {
 	display: grid;
-	gap: 16px;
+	gap: 8px;
 	min-height: 0;
 }
 
@@ -121,13 +121,13 @@ img {
 	display: grid;
 	grid-template-columns: repeat(4, minmax(0, 1fr));
 	gap: 8px;
-	padding: 12px 0;
+	padding: 8px 0;
 }
 
 .app-shell.sidebar-collapsed .sidebar-top-strip {
 	grid-template-columns: 1fr;
 	width: 100%;
-	padding: 12px 0;
+	padding: 8px 0;
 	justify-items: center;
 }
 
@@ -162,6 +162,11 @@ img {
 	justify-content: center;
 	width: 100%;
 	min-width: 0;
+}
+
+.brand a {
+	display: contents;
+	text-decoration: none;
 }
 
 .app-shell.sidebar-collapsed .brand {

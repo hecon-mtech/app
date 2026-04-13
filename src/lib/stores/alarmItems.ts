@@ -1,6 +1,6 @@
 import { writable } from 'svelte/store';
 
-export type BannerItem = {
+export type AlarmItem = {
 	id: string;
 	title: string;
 	preview: string;
@@ -11,7 +11,7 @@ export type BannerItem = {
 	targetLabel?: string;
 };
 
-const fallbackBannerItems: BannerItem[] = [
+const fallbackAlarmItems: AlarmItem[] = [
 	{
 		id: 'system-status',
 		title: '시스템 상태',
@@ -21,10 +21,10 @@ const fallbackBannerItems: BannerItem[] = [
 	}
 ];
 
-const bannerItems = writable<BannerItem[]>(fallbackBannerItems);
+const alarmItems = writable<AlarmItem[]>(fallbackAlarmItems);
 
-const setBannerItems = (items: BannerItem[]) => {
-	bannerItems.set(items.length > 0 ? items : fallbackBannerItems);
+const setAlarmItems = (items: AlarmItem[]) => {
+	alarmItems.set(items.length > 0 ? items : fallbackAlarmItems);
 };
 
-export { bannerItems, setBannerItems };
+export { alarmItems, setAlarmItems };

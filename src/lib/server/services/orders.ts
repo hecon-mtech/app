@@ -4,7 +4,7 @@ import { auctionBids, auctionRegInventory, configurations, drugs, inventory } fr
 import { and, desc, eq, gt, gte, inArray, lte, sql } from 'drizzle-orm';
 import { ServiceError } from './errors';
 
-export type BannerItem = {
+export type AlarmItem = {
 	id: string;
 	title: string;
 	preview: string;
@@ -403,10 +403,10 @@ export const getCurrentAuctionStatus = async (hospitalId: string, requestedRange
 	};
 };
 
-export const getBannerItems = async (hospitalId: string) => {
+export const getAlarmItems = async (hospitalId: string) => {
 	const orders = await getRecentOrders(hospitalId);
 	const now = new Date();
-	const items: BannerItem[] = [];
+	const items: AlarmItem[] = [];
 
 	const alarmRows = orders.filter((row) => {
 		const currentStock = toNumeric(row.currentStock);
@@ -465,7 +465,7 @@ export const getBannerItems = async (hospitalId: string) => {
 			id: 'system-sync',
 			title: '동기화 알림',
 			preview: '1분 주기 API polling 및 DB 상태 점검 중',
-			detail: '배너 스토어는 1분마다 서버 API를 호출해 최신 재고 소진 경보 및 운영 상태를 반영합니다.',
+			detail: '알림 스토어는 1분마다 서버 API를 호출해 최신 재고 소진 경보 및 운영 상태를 반영합니다.',
 			level: 'info'
 		}
 	);

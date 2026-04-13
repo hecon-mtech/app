@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount, tick } from 'svelte';
-	import { bannerItems, setBannerItems, type BannerItem } from '$lib/stores/bannerItems';
+	import { alarmItems, setAlarmItems, type AlarmItem } from '$lib/stores/alarmItems';
 	import {
 		dashboardConversation,
 		removeDashboardConversationSession,
@@ -179,32 +179,32 @@
 		}
 	};
 
-	const refreshBannerItems = async () => {
+	const refreshAlarmItems = async () => {
 		if (isLogin()) return;
 		try {
-			const response = await fetch('/api/banner-items');
+			const response = await fetch('/api/alarm-items');
 			if (!response.ok) return;
 			const payload = await response.json();
-			setBannerItems(payload.items ?? []);
+			setAlarmItems(payload.items ?? []);
 		} catch {
 			return;
 		}
 	};
 
-	type OrderBannerLink = {
+	type OrderAlarmLink = {
 		action?: 'open-order-modal';
 		targetDrugId?: string;
 		targetLabel?: string;
 	};
 
-	const toOrderBannerLink = (banner: unknown) => banner as OrderBannerLink;
-	const toBannerItem = (banner: unknown) => banner as BannerItem;
+	const toOrderAlarmLink = (alarm: unknown) => alarm as OrderAlarmLink;
+	const toAlarmItem = (alarm: unknown) => alarm as AlarmItem;
 
-	const getWarnAlarmCount = () => $bannerItems.filter((item) => item.level === 'warn').length;
+	const getWarnAlarmCount = () => $alarmItems.filter((item) => item.level === 'warn').length;
 
 	const getAlarmButtonLabel = () => {
 		const warnCount = getWarnAlarmCount();
-		return warnCount > 0 ? `경보 ${warnCount}` : `알림 ${$bannerItems.length}`;
+		return warnCount > 0 ? `경보 ${warnCount}` : `알림 ${$alarmItems.length}`;
 	};
 
 	const clampAlarmFabPosition = (x: number, y: number) => {
@@ -329,8 +329,8 @@
 		alarmIsDragging = false;
 	};
 
-	const handleBannerClick = async (banner: unknown) => {
-		const orderLink = toOrderBannerLink(banner);
+	const handleAlarmClick = async (alarm: unknown) => {
+		const orderLink = toOrderAlarmLink(alarm);
 		if (orderLink.action !== 'open-order-modal' || !orderLink.targetDrugId) return;
 		const url = new URL(`${getTenantBasePath()}/chat`, page.url.origin);
 		url.searchParams.set('openOrderDrugId', orderLink.targetDrugId);
@@ -340,16 +340,16 @@
 		await goto(`${url.pathname}${url.search}`);
 	};
 
-	const handleAlarmCardClick = async (banner: BannerItem) => {
+	const handleAlarmCardClick = async (alarm: AlarmItem) => {
 		alarmPanelOpen = false;
-		if (toOrderBannerLink(banner).action === 'open-order-modal') {
-			await handleBannerClick(banner);
+		if (toOrderAlarmLink(alarm).action === 'open-order-modal') {
+			await handleAlarmClick(alarm);
 		}
 	};
 
 	$effect(() => {
 		if (!isLogin()) {
-			refreshBannerItems();
+			refreshAlarmItems();
 		}
 	});
 
@@ -362,8 +362,8 @@
 		queueAmbientGlowRefresh();
 		const viewport = window.visualViewport;
 		const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-		const onBannerRefreshRequest = () => {
-			refreshBannerItems();
+		const onAlarmRefreshRequest = () => {
+			refreshAlarmItems();
 		};
 		const onDocumentClick = (event: MouseEvent) => {
 			if (!alarmPanelOpen) return;
@@ -381,16 +381,16 @@
 			queueAmbientGlowRefresh();
 		};
 		const disposeReducedMotionListener = bindMediaQueryChange(reducedMotionQuery, onMotionPreferenceChange);
-		window.addEventListener('banner-refresh-request', onBannerRefreshRequest);
+		window.addEventListener('alarm-refresh-request', onAlarmRefreshRequest);
 		window.addEventListener('resize', updateViewportBounds);
 		document.addEventListener('click', onDocumentClick);
 		document.addEventListener('keydown', onDocumentKeydown);
 		viewport?.addEventListener('resize', updateViewportBounds);
-		const interval = setInterval(refreshBannerItems, pollIntervalMs);
+		const interval = setInterval(refreshAlarmItems, pollIntervalMs);
 		return () => {
 			clearInterval(interval);
 			stopAmbientGlowRefresh();
-			window.removeEventListener('banner-refresh-request', onBannerRefreshRequest);
+			window.removeEventListener('alarm-refresh-request', onAlarmRefreshRequest);
 			window.removeEventListener('resize', updateViewportBounds);
 			document.removeEventListener('click', onDocumentClick);
 			document.removeEventListener('keydown', onDocumentKeydown);
@@ -472,7 +472,9 @@
 					</button>
 				</div>
 				<div class="brand">
-					<img src="/company_logo.png" alt="MTECH" class="brand-logo" />
+					<a href="/hospital/chat" aria-label="홈으로 이동">
+						<img src="/company_logo.png" alt="MTECH" class="brand-logo" />
+					</a>
 				</div>
 			</div>
 
@@ -559,38 +561,38 @@
 			</div>
 
 			<div class="alarm-panel-meta muted">
-				긴급 경보 {getWarnAlarmCount()}건, 전체 알림 {$bannerItems.length}건
+				긴급 경보 {getWarnAlarmCount()}건, 전체 알림 {$alarmItems.length}건
 			</div>
 
 			<div class="alarm-panel-list">
-				{#each $bannerItems as banner (toBannerItem(banner).id)}
-					{#if toOrderBannerLink(banner).action === 'open-order-modal'}
+				{#each $alarmItems as alarm (toAlarmItem(alarm).id)}
+					{#if toOrderAlarmLink(alarm).action === 'open-order-modal'}
 						<button
 							type="button"
 							class="alarm-card is-clickable"
-							class:is-warn={banner.level === 'warn'}
-							onclick={() => handleAlarmCardClick(toBannerItem(banner))}
+							class:is-warn={alarm.level === 'warn'}
+							onclick={() => handleAlarmCardClick(toAlarmItem(alarm))}
 						>
 							<div class="alarm-card-head">
 								<div class="alarm-card-title-wrap">
-									<span class="status-dot" class:is-warn={banner.level === 'warn'}></span>
-									<span class="alarm-card-title">{banner.title}</span>
+									<span class="status-dot" class:is-warn={alarm.level === 'warn'}></span>
+									<span class="alarm-card-title">{alarm.title}</span>
 								</div>
 								<span class="alarm-card-action">대시보드에서 열기</span>
 							</div>
-							<div class="alarm-card-preview">{banner.preview}</div>
-							<div class="alarm-card-detail">{banner.detail}</div>
+							<div class="alarm-card-preview">{alarm.preview}</div>
+							<div class="alarm-card-detail">{alarm.detail}</div>
 						</button>
 					{:else}
-						<article class="alarm-card" class:is-warn={banner.level === 'warn'}>
+						<article class="alarm-card" class:is-warn={alarm.level === 'warn'}>
 							<div class="alarm-card-head">
 								<div class="alarm-card-title-wrap">
-									<span class="status-dot" class:is-warn={banner.level === 'warn'}></span>
-									<span class="alarm-card-title">{banner.title}</span>
+									<span class="status-dot" class:is-warn={alarm.level === 'warn'}></span>
+									<span class="alarm-card-title">{alarm.title}</span>
 								</div>
 							</div>
-							<div class="alarm-card-preview">{banner.preview}</div>
-							<div class="alarm-card-detail">{banner.detail}</div>
+							<div class="alarm-card-preview">{alarm.preview}</div>
+							<div class="alarm-card-detail">{alarm.detail}</div>
 						</article>
 					{/if}
 				{/each}

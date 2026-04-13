@@ -20,7 +20,7 @@ This file applies to `src/routes/api/`.
 - `chat/`: sessions, messages, sends, and uploads.
 - `openai/`: credential and model endpoints.
 - `usage-forecast/`: forecast queries and options.
-- `demo/`, `ems/`, `auction-reg/`, `banner-items/`, `drug-associations/`: feature-specific adapters.
+- `demo/`, `ems/`, `auction-reg/`, `alarm-items/`, `drug-associations/`: feature-specific adapters.
 
 ## Local Conventions
 - Prefer `json(...)` responses and `ServiceError` handling patterns already used in this folder.

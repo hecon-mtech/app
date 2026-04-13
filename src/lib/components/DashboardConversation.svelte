@@ -516,7 +516,7 @@
 				message: `${targets.length}개 약품 주문이 등록되었습니다.`
 			};
 			if (typeof window !== 'undefined') {
-				window.dispatchEvent(new Event('banner-refresh-request'));
+				window.dispatchEvent(new Event('alarm-refresh-request'));
 			}
 		} catch (error) {
 			bulkOrderMessage = {

@@ -160,6 +160,13 @@
 
 	if (typeof window !== 'undefined') {
 		pendingFlow = restoreFlow();
+
+		const urlCode = page.url.searchParams.get('code');
+		const urlState = page.url.searchParams.get('state');
+		if (urlCode && urlState && pendingFlow && pendingFlow.state === urlState) {
+			pastedAuthorization = `code=${urlCode}&state=${urlState}`;
+			queueMicrotask(() => saveCredential());
+		}
 	}
 </script>
 

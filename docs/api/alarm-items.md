@@ -1,4 +1,4 @@
-# `GET /api/banner-items`
+# `GET /api/alarm-items`
 
 ## Purpose
 
@@ -16,7 +16,7 @@ No body.
 Example:
 
 ```http
-GET /api/banner-items
+GET /api/alarm-items
 ```
 
 ## Response
@@ -51,7 +51,7 @@ GET /api/banner-items
 
 ## Related Service
 
-- `src/lib/server/services/orders.ts#getBannerItems`
+- `src/lib/server/services/orders.ts#getAlarmItems`
 
 ## Related Tool
 
