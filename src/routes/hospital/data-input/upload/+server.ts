@@ -1,37 +1,32 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { env } from '$env/dynamic/private';
-import path from 'node:path';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { importUploadedPatientData } from '$lib/server/services/patients';
+import { isServiceError } from '$lib/server/services/errors';
 
-const resolveUploadDir = () => {
-	const configuredDir = env.FILE_UPLOAD_DIR?.trim() || './raw';
-	return path.isAbsolute(configuredDir)
-		? configuredDir
-		: path.resolve(process.cwd(), configuredDir);
-};
-
-const buildSafeFilename = (filename: string) => {
-	const baseName = path.basename(filename || 'upload.xlsx');
-	return `${Date.now()}_${baseName}`;
-};
-
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ locals, request }) => {
+	const hospitalId = locals.user?.id ?? 'HOSP0001';
 	const formData = await request.formData();
 	const file = formData.get('file');
+	const patientType = formData.get('patientType');
 
 	if (!(file instanceof File)) {
-		return json({ error: '업로드할 파일이 없습니다.' }, { status: 400 });
+		return json({ message: '업로드할 파일이 없습니다.' }, { status: 400 });
 	}
 
-	const uploadDir = resolveUploadDir();
-	await mkdir(uploadDir, { recursive: true });
+	try {
+		return json(
+			await importUploadedPatientData({
+				hospitalId,
+				fileName: file.name,
+				arrayBuffer: await file.arrayBuffer(),
+				patientType: typeof patientType === 'string' ? patientType : null
+			})
+		);
+	} catch (error) {
+		if (isServiceError(error)) {
+			return json({ message: error.message }, { status: error.status });
+		}
 
-	const arrayBuffer = await file.arrayBuffer();
-	const safeFilename = buildSafeFilename(file.name);
-	const targetPath = path.join(uploadDir, safeFilename);
-
-	await writeFile(targetPath, Buffer.from(arrayBuffer));
-
-	return json({ filename: safeFilename });
+		throw error;
+	}
 };

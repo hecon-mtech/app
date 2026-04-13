@@ -15,7 +15,7 @@ export const inventory = pgTable(
 		drugId: text('drug_id')
 			.references(() => drugs.drugCode)
 			.notNull(),
-		flow: numeric('quantity').notNull(),
+		flow: numeric('flow').notNull(),
 		type: flowTypeEnum('type_').notNull(),
 		stock: numeric('stock').notNull(),
 		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

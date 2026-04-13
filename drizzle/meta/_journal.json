@@ -8,6 +8,13 @@
       "when": 1775984715299,
       "tag": "0000_petite_silvermane",
       "breakpoints": true
+	},
+	{
+	  "idx": 1,
+	  "version": "7",
+	  "when": 1776000000000,
+	  "tag": "0001_user_default_model",
+	  "breakpoints": true
     }
   ]
 }

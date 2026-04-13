@@ -322,6 +322,16 @@ export const getRecentOrders = async (hospitalId: string): Promise<OrderItem[]> 
 	});
 };
 
+export const getStockShortageOrders = async (hospitalId: string) => {
+	const orders = await getRecentOrders(hospitalId);
+
+	return {
+		columns: ['drugId', 'item', 'currentStock', 'nextWeekBest', 'nextWeekWorst', 'cartAction'],
+		rows: orders,
+		count: orders.length
+	};
+};
+
 export const getAuctionOrdersPageData = async (hospitalId: string, requestedRange: string | null) => {
 	const now = new Date();
 	const range = RANGE_OPTIONS.has((requestedRange ?? 'all').trim()) ? (requestedRange ?? 'all').trim() : 'all';
@@ -374,6 +384,22 @@ export const getAuctionOrdersPageData = async (hospitalId: string, requestedRang
 			};
 		}),
 		range
+	};
+};
+
+export const getCurrentAuctionStatus = async (hospitalId: string, requestedRange: string | null) => {
+	const page = await getAuctionOrdersPageData(hospitalId, requestedRange);
+	const activeCount = page.orders.filter((order) => !order.isExpired).length;
+	const expiredCount = page.orders.length - activeCount;
+
+	return {
+		range: page.range,
+		summary: {
+			total: page.orders.length,
+			active: activeCount,
+			expired: expiredCount
+		},
+		orders: page.orders
 	};
 };
 

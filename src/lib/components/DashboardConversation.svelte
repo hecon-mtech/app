@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import type { AssistantPayload } from '$lib/chat/render-blocks';
 	import Modal from '$lib/components/Modal.svelte';
 	import MarkdownMessage from '$lib/components/MarkdownMessage.svelte';
+	import StructuredRenderBlocks from '$lib/components/StructuredRenderBlocks.svelte';
 	import { DEFAULT_OPENAI_MODEL_ID, type OpenAiModelPreset } from '$lib/openai/models';
 	import { onMount, tick } from 'svelte';
 	import {
@@ -22,6 +24,7 @@
 		title?: string;
 		content: string;
 		createdAt: string;
+		payload?: AssistantPayload | null;
 	};
 
 	type AssociatedDrug = {
@@ -46,7 +49,6 @@
 	];
 
 	const assistantTitle = 'MTECHnician';
-	const MODEL_STORAGE_KEY = 'dashboard-openai-model';
 
 	const getFallbackSessionTitle = (value: Date = new Date()) => {
 		const year = value.getFullYear();
@@ -89,6 +91,7 @@
 	let bulkOrdering = false;
 	let bulkOrderMessage: { tone: 'success' | 'error'; message: string } | null = null;
 	let lastQueryOpenKey = '';
+	let lastQueryNewSessionKey = '';
 
 	$: activeSession =
 		$dashboardConversation.sessions.find(
@@ -100,7 +103,8 @@
 			role: entry.role,
 			title: entry.role === 'assistant' ? assistantTitle : undefined,
 			content: entry.content,
-			createdAt: entry.createdAt
+			createdAt: entry.createdAt,
+			payload: entry.payload ?? null
 		})
 	);
 	$: sessionTitle = activeSession?.title ?? getFallbackSessionTitle();
@@ -137,12 +141,16 @@
 			if (entry.role !== 'assistant' && entry.role !== 'user') continue;
 			if (typeof entry.content !== 'string' || typeof entry.createdAt !== 'string') continue;
 			seen.add(entry.id);
-			normalized.push({
-				id: entry.id,
-				role: entry.role,
-				content: entry.content,
-				createdAt: entry.createdAt
-			});
+				normalized.push({
+					id: entry.id,
+					role: entry.role,
+					content: entry.content,
+					createdAt: entry.createdAt,
+					payload:
+						entry.payload && typeof entry.payload === 'object'
+							? (entry.payload as AssistantPayload)
+							: null
+				});
 		}
 
 		return normalized;
@@ -153,8 +161,17 @@
 
 	const persistSelectedModel = (modelId: string) => {
 		selectedModelId = modelId;
-		if (typeof window !== 'undefined') {
-			window.localStorage.setItem(MODEL_STORAGE_KEY, modelId);
+	};
+
+	const saveDefaultModel = async (modelId: string) => {
+		const response = await fetch('/api/openai/models', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ modelId })
+		});
+
+		if (!response.ok) {
+			throw new Error(await readErrorMessage(response, '기본 모델을 저장하지 못했습니다.'));
 		}
 	};
 
@@ -210,10 +227,7 @@
 			typeof modelsPayload?.defaultModelId === 'string'
 				? modelsPayload.defaultModelId
 				: DEFAULT_OPENAI_MODEL_ID;
-		const storedModelId =
-			typeof window !== 'undefined' ? window.localStorage.getItem(MODEL_STORAGE_KEY) : null;
 		const resolvedModelId =
-			availableModels.find((model) => model.id === storedModelId)?.id ??
 			availableModels.find((model) => model.id === defaultModelId)?.id ??
 			availableModels[0]?.id ??
 			DEFAULT_OPENAI_MODEL_ID;
@@ -433,8 +447,17 @@
 		await createConversationSession();
 	};
 
-	const handleModelChange = (event: Event) => {
-		persistSelectedModel((event.currentTarget as HTMLSelectElement).value);
+	const handleModelChange = async (event: Event) => {
+		const nextModelId = (event.currentTarget as HTMLSelectElement).value;
+		const previousModelId = selectedModelId;
+		persistSelectedModel(nextModelId);
+
+		try {
+			await saveDefaultModel(nextModelId);
+		} catch (error) {
+			persistSelectedModel(previousModelId);
+			chatError = error instanceof Error ? error.message : '기본 모델을 저장하지 못했습니다.';
+		}
 	};
 
 	const closeOrderModal = () => {
@@ -543,6 +566,21 @@
 	};
 
 	$: {
+		const createSessionFlag = page.url.searchParams.get('newSession')?.trim() ?? '';
+		if (!createSessionFlag) {
+			lastQueryNewSessionKey = '';
+		} else if (createSessionFlag !== lastQueryNewSessionKey && mounted) {
+			lastQueryNewSessionKey = createSessionFlag;
+			void handleCreateSessionClick();
+			if (typeof window !== 'undefined') {
+				const nextUrl = new URL(window.location.href);
+				nextUrl.searchParams.delete('newSession');
+				window.history.replaceState(window.history.state, '', nextUrl.toString());
+			}
+		}
+	}
+
+	$: {
 		const drugId = page.url.searchParams.get('openOrderDrugId')?.trim() ?? '';
 		if (!drugId) {
 			lastQueryOpenKey = '';
@@ -564,8 +602,13 @@
 
 	onMount(() => {
 		mounted = true;
+		const onSidebarNewSession = () => {
+			void handleCreateSessionClick();
+		};
+		window.addEventListener('dashboard-new-session-request', onSidebarNewSession);
 		void initializeConversation();
 		return () => {
+			window.removeEventListener('dashboard-new-session-request', onSidebarNewSession);
 			mounted = false;
 			transcriptRequestId += 1;
 		};
@@ -584,28 +627,7 @@
 					</div>
 				{/if}
 			</div>
-			<div class="assistant-header-actions">
-				<label class="assistant-model-picker">
-					<span>새 대화 모델</span>
-					<select bind:value={selectedModelId} on:change={handleModelChange}>
-						{#each availableModels as model}
-							<option value={model.id}>{model.label}</option>
-						{/each}
-					</select>
-				</label>
-				<a class="button assistant-link-button" href={buildSetupHref('/hospital/openai/select')}>
-					OAuth 선택
-				</a>
-				<button
-					type="button"
-					class="button assistant-session-action"
-					on:click={handleCreateSessionClick}
-					disabled={sendingSessionId !== null || creatingSession || !openAiReady}
-				>
-					{creatingSession ? '생성 중...' : '새 대화'}
-				</button>
-			</div>
-		</header>
+			</header>
 
 		{#if chatError}
 			<p class="assistant-status-message error">{chatError}</p>
@@ -645,7 +667,12 @@
 								{#if message.title}
 									<div class="assistant-bubble-title">{message.title}</div>
 								{/if}
-								<MarkdownMessage value={message.content} />
+								<div class="assistant-bubble-content">
+									{#if message.role === 'assistant' && (message.payload?.renderBlocks?.length ?? 0) > 0}
+										<StructuredRenderBlocks blocks={message.payload?.renderBlocks ?? []} />
+									{/if}
+									<MarkdownMessage value={message.content} />
+								</div>
 							</div>
 						</article>
 					{/each}
@@ -778,16 +805,12 @@
 	}
 
 	.assistant-header {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 16px;
+		display: block;
 	}
 
 	.assistant-header-copy,
-	.assistant-header-actions,
-	.assistant-meta-row,
-	.assistant-model-picker {
+	.assistant-title-row,
+	.assistant-meta-row {
 		display: flex;
 		gap: 10px;
 	}
@@ -797,10 +820,9 @@
 		align-items: flex-start;
 	}
 
-	.assistant-header-actions {
+	.assistant-title-row {
 		align-items: center;
 		flex-wrap: wrap;
-		justify-content: flex-end;
 	}
 
 	.assistant-meta-row {
@@ -820,38 +842,12 @@
 		color: rgba(31, 43, 58, 0.66);
 	}
 
-	.assistant-model-picker {
-		flex-direction: column;
-		align-items: flex-start;
-		font-size: 0.76rem;
+	.assistant-title {
+		margin: 0;
+		font-size: clamp(1.1rem, 1rem + 0.4vw, 1.45rem);
 		font-weight: 700;
-		letter-spacing: 0.04em;
-		text-transform: uppercase;
-		color: rgba(31, 43, 58, 0.5);
-	}
-
-	.assistant-model-picker select {
-		min-width: 180px;
-		padding: 10px 12px;
-		border-radius: 12px;
-		border: 1px solid rgba(255, 255, 255, 0.58);
-		background: linear-gradient(180deg, rgba(255, 255, 255, 0.44), rgba(244, 250, 255, 0.18));
-		font: inherit;
-		font-size: 0.88rem;
-		font-weight: 600;
-		color: var(--ink);
-	}
-
-	.assistant-link-button {
-		text-decoration: none;
-	}
-
-	.assistant-eyebrow {
-		font-size: 0.72rem;
-		font-weight: 700;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: rgba(31, 43, 58, 0.54);
+		letter-spacing: -0.02em;
+		color: rgba(31, 43, 58, 0.92);
 	}
 
 	.assistant-stage {
@@ -873,12 +869,6 @@
 		align-items: center;
 		justify-content: center;
 		padding: 24px 0;
-	}
-
-	.assistant-session-action {
-		width: auto;
-		flex: 0 0 auto;
-		white-space: nowrap;
 	}
 
 	.assistant-status-message {
@@ -934,7 +924,14 @@
 		gap: 18px;
 		min-height: 0;
 		overflow-y: auto;
+		padding: 18px;
 		padding-right: 4px;
+		border-radius: 24px;
+		background:
+			linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(240, 248, 255, 0.12)),
+			radial-gradient(circle at top left, rgba(145, 212, 255, 0.18), transparent 34%);
+		border: 1px solid rgba(255, 255, 255, 0.46);
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 		scrollbar-width: thin;
 		scrollbar-color: rgba(107, 122, 140, 0.34) transparent;
 	}
@@ -992,6 +989,24 @@
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: rgba(31, 43, 58, 0.52);
+	}
+
+	.assistant-bubble-content {
+		display: grid;
+		gap: 12px;
+	}
+
+	.assistant-bubble-content {
+		display: grid;
+		gap: 12px;
+	}
+
+	.assistant-visual-slot {
+		display: none;
+		min-height: 220px;
+		border-radius: 16px;
+		background: linear-gradient(180deg, rgba(229, 241, 255, 0.72), rgba(255, 255, 255, 0.38));
+		border: 1px dashed rgba(30, 99, 181, 0.22);
 	}
 
 	.assistant-bubble :global(.markdown-message) {
@@ -1264,22 +1279,7 @@
 			align-items: stretch;
 		}
 
-		.assistant-header-actions {
-			justify-content: stretch;
-		}
-
-		.assistant-model-picker,
-		.assistant-model-picker select,
-		.assistant-link-button,
-		.assistant-session-action {
-			width: 100%;
-		}
-
-		.assistant-session-action {
-			width: 100%;
-		}
-
-		.assistant-composer-actions {
+.assistant-composer-actions {
 			flex-direction: column;
 			align-items: stretch;
 		}

@@ -144,7 +144,7 @@
 
 			sessionStorage.removeItem(FLOW_STORAGE_KEY);
 			feedback = { tone: 'success', message: 'OpenAI OAuth 자격증명이 저장되었습니다.' };
-			await goto(page.url.searchParams.get('next') || '/hospital/dashboards');
+			await goto(page.url.searchParams.get('next') || '/hospital/chat');
 		} catch (error) {
 			feedback = {
 				tone: 'error',
@@ -171,7 +171,7 @@
 				Opencode 수동 연결 흐름처럼 브라우저에서 로그인한 뒤, 최종 redirect URL 또는 code를 붙여넣어 저장합니다.
 			</p>
 		</div>
-		<a class="button" href={page.url.searchParams.get('next') || '/hospital/dashboards'}>취소</a>
+		<a class="button" href={page.url.searchParams.get('next') || '/hospital/chat'}>취소</a>
 	</div>
 
 	<div class="field">

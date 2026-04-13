@@ -11,8 +11,7 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"seed:drugs": "tsx script/seed/seed-drugs.ts",
-		"seed:users": "tsx script/seed/seed-hospitals.ts",
-		"seed:hospitals": "npm run seed:users",
+		"seed:users": "tsx script/seed/seed-users.ts",
 		"seed:all": "npm run db:reset && npm run db:migrate && npm run seed:users && npm run seed:drugs",
 		"seed": "npm run seed:all",
 		"db:generate": "drizzle-kit generate",
@@ -49,6 +48,7 @@
 		"hyparquet": "^1.25.1",
 		"isomorphic-dompurify": "^3.8.0",
 		"pg": "^8.18.0",
-		"tailwind-merge": "^3.4.0"
+		"tailwind-merge": "^3.4.0",
+		"xlsx": "^0.18.5"
 	}
 }

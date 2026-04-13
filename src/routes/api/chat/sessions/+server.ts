@@ -1,6 +1,10 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { createChatSession, listChatSessions } from '$lib/server/services/messages';
+import {
+	createChatSession,
+	deleteChatSession,
+	listChatSessions
+} from '$lib/server/services/messages';
 import { isServiceError } from '$lib/server/services/errors';
 
 export const GET: RequestHandler = async ({ locals }) => {
@@ -14,6 +18,20 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 
 	try {
 		return json(await createChatSession(hospitalId, payload));
+	} catch (error) {
+		if (isServiceError(error)) {
+			return json({ message: error.message }, { status: error.status });
+		}
+
+		throw error;
+	}
+};
+
+export const DELETE: RequestHandler = async ({ locals, url }) => {
+	const hospitalId = locals.user?.id ?? 'HOSP0001';
+
+	try {
+		return json(await deleteChatSession(hospitalId, url.searchParams.get('sessionId')));
 	} catch (error) {
 		if (isServiceError(error)) {
 			return json({ message: error.message }, { status: error.status });

@@ -1,4 +1,5 @@
 import { ServiceError } from './errors';
+import { withRenderBlocks } from './render-blocks';
 import {
 	OPENAI_CODEX_RESPONSES_URL,
 	OPENAI_PLATFORM_RESPONSES_URL
@@ -143,15 +144,15 @@ const parseSseResponse = async (response: Response): Promise<ParsedSseResponse> 
 			};
 			const eventType = typeof data.type === 'string' ? data.type : '';
 
-			if (eventType.endsWith('.delta') && typeof data.delta === 'string' && data.delta) {
+			if (eventType.endsWith('.delta') && !eventType.includes('function_call') && typeof data.delta === 'string' && data.delta) {
 				streamedChunks.push(data.delta);
 			}
 
-			if (eventType.endsWith('.delta') && typeof data.text === 'string' && data.text) {
+			if (eventType.endsWith('.delta') && !eventType.includes('function_call') && typeof data.text === 'string' && data.text) {
 				streamedChunks.push(data.text);
 			}
 
-			if (eventType.endsWith('.delta') && data.part && typeof data.part === 'object') {
+			if (eventType.endsWith('.delta') && !eventType.includes('function_call') && data.part && typeof data.part === 'object') {
 				const partText = collectTextFromContentItem(data.part);
 				if (partText) {
 					streamedChunks.push(partText);
@@ -361,12 +362,12 @@ export const generateAssistantReply = async ({
 
 			return {
 				content,
-				payload: {
+				payload: withRenderBlocks({
 					provider: credential.oauth ? 'openai-oauth' : 'openai-api-key',
 					modelId,
 					providerItems: outputItems,
 					toolTrace
-				}
+				})
 			};
 		}
 

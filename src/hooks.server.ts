@@ -2,27 +2,6 @@ import { redirect, type Handle } from '@sveltejs/kit';
 import { verifySessionToken } from '$lib/server/session';
 import { getTenantHomePath, getTenantSegmentFromUserId, type TenantSegment } from '$lib/tenant';
 
-const LEGACY_ROUTE_MAPPERS: Array<{
-	prefix: string;
-	resolve: (tenant: TenantSegment, suffix: string) => string;
-}> = [
-	{ prefix: '/dashboard', resolve: (tenant, suffix) => `/${tenant}/dashboards${suffix}` },
-	{ prefix: '/data-input', resolve: (tenant, suffix) => `/${tenant}/data-input${suffix}` },
-	{ prefix: '/order', resolve: (tenant, suffix) => `/${tenant}/order${suffix}` },
-	{ prefix: '/settings', resolve: (tenant, suffix) => `/${tenant}/settings${suffix}` }
-];
-
-const resolveLegacyRoute = (pathname: string, tenant: TenantSegment) => {
-	for (const route of LEGACY_ROUTE_MAPPERS) {
-		if (pathname === route.prefix || pathname.startsWith(`${route.prefix}/`)) {
-			const suffix = pathname.slice(route.prefix.length);
-			return route.resolve(tenant, suffix);
-		}
-	}
-
-	return null;
-};
-
 export const handle: Handle = async ({ event, resolve }) => {
 	const pathname = event.url.pathname;
 	const cookieToken = event.cookies.get('session');
@@ -66,11 +45,6 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 		if (isLoginRoute || isRootRoute) {
 			throw redirect(303, getTenantHomePath(tenant));
-		}
-
-		const legacyRoute = resolveLegacyRoute(pathname, tenant);
-		if (legacyRoute) {
-			throw redirect(303, `${legacyRoute}${event.url.search}`);
 		}
 
 		const isTenantRoute = pathname === '/hospital' || pathname.startsWith('/hospital/');

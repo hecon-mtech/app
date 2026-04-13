@@ -1,21 +1,26 @@
 <script lang="ts">
 	import '../app.css';
-	import favicon from '$lib/assets/favicon.svg';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount, tick } from 'svelte';
 	import { bannerItems, setBannerItems, type BannerItem } from '$lib/stores/bannerItems';
 	import {
 		dashboardConversation,
+		removeDashboardConversationSession,
 		selectDashboardConversationSession
 	} from '$lib/stores/dashboardConversation';
 	import { sidebarCollapsed, initSidebarStore } from '$lib/stores/sidebar';
+	import ButtonWithMenu from '$lib/components/ButtonWithMenu.svelte';
 
 	let { children } = $props();
 
 	const getTenantBasePath = () => '/hospital';
+	const profileHref = () => `${getTenantBasePath()}/profile`;
+	const settingsHref = () => `${getTenantBasePath()}/settings`;
 
 	const isLogin = () => page.url.pathname === '/login';
+	const isProfile = () => page.url.pathname === profileHref();
+	const isSettings = () => page.url.pathname === settingsHref();
 
 	const pollIntervalMs = 60_000;
 	let appViewportWidth = $state('100vw');
@@ -36,6 +41,7 @@
 	let alarmFabStartY = 0;
 	let alarmIsDragging = false;
 	let suppressAlarmToggleOnce = false;
+	let deletingSessionId = $state<number | null>(null);
 
 	type AmbientGlowTone = 'ice' | 'blue' | 'mist';
 	type AmbientGlow = {
@@ -48,7 +54,7 @@
 		delay: string;
 	};
 
-	const isDashboard = () => page.url.pathname.endsWith('/dashboards');
+	const isDashboard = () => page.url.pathname.endsWith('/chat');
 	let ambientGlowIce = $state<AmbientGlow>({
 		x: '16%',
 		y: '16%',
@@ -214,7 +220,7 @@
 	};
 
 	const getAlarmFabStyle = () =>
-		alarmFabReady ? `left: ${alarmFabX}px; top: ${alarmFabY}px;` : 'left: 18px; bottom: 18px;';
+		alarmFabReady ? `left: ${alarmFabX}px; top: ${alarmFabY}px;` : 'right: 18px; bottom: 18px;';
 
 	const getAlarmPanelStyle = () => {
 		const panelWidth = Math.min(420, Math.max(280, appViewportWidthPx - 36));
@@ -234,10 +240,49 @@
 	const initializeAlarmFabPosition = async () => {
 		if (typeof window === 'undefined') return;
 		await tick();
+		const buttonWidth = alarmButtonRef?.offsetWidth ?? 156;
 		const buttonHeight = alarmButtonRef?.offsetHeight ?? 52;
-		alarmFabX = 18;
+		alarmFabX = Math.max(18, appViewportWidthPx - buttonWidth - 18);
 		alarmFabY = Math.max(18, appViewportHeightPx - buttonHeight - 18);
 		alarmFabReady = true;
+	};
+
+	const dispatchNewSessionRequest = () => {
+		if (typeof window === 'undefined') return;
+		window.dispatchEvent(new Event('dashboard-new-session-request'));
+	};
+
+	const handleCreateSessionFromSidebar = async () => {
+		if (isDashboard()) {
+			dispatchNewSessionRequest();
+			return;
+		}
+
+		await goto(`${getTenantBasePath()}/chat?newSession=1`);
+	};
+
+	const deleteSession = async (sessionId: number) => {
+		if (deletingSessionId === sessionId) return;
+		deletingSessionId = sessionId;
+
+		try {
+			const response = await fetch(`/api/chat/sessions?sessionId=${encodeURIComponent(String(sessionId))}`, {
+				method: 'DELETE'
+			});
+
+			if (!response.ok) {
+				const payload = await response.json().catch(() => ({}));
+				throw new Error(
+					typeof payload?.message === 'string' ? payload.message : '대화 세션을 삭제하지 못했습니다.'
+				);
+			}
+
+			removeDashboardConversationSession(sessionId);
+		} catch (error) {
+			console.error(error);
+		} finally {
+			deletingSessionId = null;
+		}
 	};
 
 	const handleAlarmButtonClick = () => {
@@ -287,7 +332,7 @@
 	const handleBannerClick = async (banner: unknown) => {
 		const orderLink = toOrderBannerLink(banner);
 		if (orderLink.action !== 'open-order-modal' || !orderLink.targetDrugId) return;
-		const url = new URL(`${getTenantBasePath()}/dashboards`, page.url.origin);
+		const url = new URL(`${getTenantBasePath()}/chat`, page.url.origin);
 		url.searchParams.set('openOrderDrugId', orderLink.targetDrugId);
 		if (orderLink.targetLabel) {
 			url.searchParams.set('openOrderLabel', orderLink.targetLabel);
@@ -356,7 +401,7 @@
 </script>
 
 <svelte:head>
-	<link rel="icon" href={favicon} />
+	<link rel="icon" href="/company_logo.png" />
 	<link
 		rel="stylesheet"
 		href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0"
@@ -384,19 +429,51 @@
 	>
 		<aside class="sidebar glass">
 			<div class="sidebar-header">
+				<div class="sidebar-top-strip" aria-label="주요 탐색">
+					{#if !$sidebarCollapsed}
+						<a
+							class="sidebar-utility-button"
+							class:is-active={isProfile()}
+							href={profileHref()}
+							aria-label="프로필"
+							title="프로필"
+						>
+							<span class="material-symbols-outlined">account_circle</span>
+						</a>
+						<a
+							class="sidebar-utility-button"
+							class:is-active={isSettings()}
+							href={settingsHref()}
+							aria-label="설정"
+							title="설정"
+						>
+							<span class="material-symbols-outlined">settings</span>
+						</a>
+						<button
+							type="button"
+							class="sidebar-utility-button"
+							onclick={handleCreateSessionFromSidebar}
+							aria-label="새 세션"
+							title="새 세션"
+						>
+							<span class="material-symbols-outlined">add_comment</span>
+						</button>
+					{/if}
+					<button
+						type="button"
+						class="sidebar-utility-button"
+						onclick={() => sidebarCollapsed.toggle()}
+						aria-label={$sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+						title={$sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+					>
+						<span class="material-symbols-outlined">
+							{$sidebarCollapsed ? 'right_panel_open' : 'left_panel_close'}
+						</span>
+					</button>
+				</div>
 				<div class="brand">
 					<img src="/company_logo.png" alt="MTECH" class="brand-logo" />
 				</div>
-				<button
-					type="button"
-					class="sidebar-toggle"
-					onclick={() => sidebarCollapsed.toggle()}
-					aria-label={$sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-				>
-					<span class="material-symbols-outlined">
-						{$sidebarCollapsed ? 'chevron_right' : 'chevron_left'}
-					</span>
-				</button>
 			</div>
 
 			<div class="sidebar-body">
@@ -404,15 +481,20 @@
 					<section class="sidebar-session-log" aria-label="채팅 세션 기록">
 						<div class="sidebar-session-list">
 							{#each $dashboardConversation.sessions as session (session.id)}
-								<button
-									type="button"
-									class="sidebar-session-button"
-									class:is-active={session.id === $dashboardConversation.activeSessionId}
-									aria-current={session.id === $dashboardConversation.activeSessionId ? 'page' : undefined}
+								<ButtonWithMenu
+									label={session.title}
+									isActive={session.id === $dashboardConversation.activeSessionId}
+									ariaCurrent={session.id === $dashboardConversation.activeSessionId ? 'page' : undefined}
 									onclick={() => selectDashboardConversationSession(session.id)}
-								>
-									{session.title}
-								</button>
+									menuItems={[
+										{
+											label: deletingSessionId === session.id ? '삭제 중...' : 'Delete',
+											danger: true,
+											disabled: deletingSessionId === session.id,
+											onclick: () => void deleteSession(session.id)
+										}
+									]}
+								/>
 							{/each}
 						</div>
 					</section>

@@ -506,4 +506,35 @@ export const getUsableOpenAiCredential = async (userId: string, credentialId: nu
 	return toCredential(row);
 };
 
+export const deleteOpenAiCredential = async (userId: string, credentialIdValue: unknown) => {
+	const credentialId = parseCredentialId(credentialIdValue);
+	if (credentialId === null) {
+		throw new ServiceError(400, 'credentialId is required.');
+	}
+
+	await getCredentialById(userId, credentialId);
+
+	const { messages: messagesTable, messageSessions } = await import('$lib/server/db/schema/messaging');
+	const sessions = await drizzleDb
+		.select({ id: messageSessions.id })
+		.from(messageSessions)
+		.where(and(eq(messageSessions.hospitalId, userId), eq(messageSessions.credentialId, credentialId)));
+
+	if (sessions.length > 0) {
+		const sessionIds = sessions.map((s) => s.id);
+		for (const sessionId of sessionIds) {
+			await drizzleDb.delete(messagesTable).where(eq(messagesTable.sessionId, sessionId));
+		}
+		await drizzleDb
+			.delete(messageSessions)
+			.where(and(eq(messageSessions.hospitalId, userId), eq(messageSessions.credentialId, credentialId)));
+	}
+
+	await drizzleDb
+		.delete(openAiCredentials)
+		.where(and(eq(openAiCredentials.userId, userId), eq(openAiCredentials.id, credentialId)));
+
+	return { credentialId };
+};
+
 export { parseCredentialId };

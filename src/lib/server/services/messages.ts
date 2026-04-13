@@ -4,9 +4,11 @@ import { drizzleDb } from '$lib/server/db';
 import { messages, messageSessions } from '$lib/server/db/schema/messaging';
 import { openAiCredentials } from '$lib/server/db/schema/users';
 import { getOpenAiModelPreset } from '$lib/openai/models';
+import type { AssistantPayload } from '$lib/chat/render-blocks';
 import { ServiceError } from './errors';
 import { generateAssistantReply } from './openai-codex';
 import { getOpenAiCredentialById } from './openai-credentials';
+import { getUserDefaultModelId } from './user-preferences';
 
 export type ChatSession = {
 	id: number;
@@ -24,6 +26,7 @@ export type ChatMessage = {
 	role: 'user' | 'assistant';
 	content: string;
 	createdAt: string;
+	payload?: AssistantPayload | null;
 };
 
 type PersistedTranscriptMessage = {
@@ -69,11 +72,13 @@ const toMessage = (row: {
 	entity: 'system' | 'user' | 'assistant';
 	content: string;
 	createdAt: Date;
+	payload?: unknown;
 }): ChatMessage => ({
 	id: row.id,
 	role: row.entity === 'user' ? 'user' : 'assistant',
 	content: row.content,
-	createdAt: row.createdAt.toISOString()
+	createdAt: row.createdAt.toISOString(),
+	payload: row.payload && typeof row.payload === 'object' ? (row.payload as AssistantPayload) : null
 });
 
 const parseSessionId = (value: unknown) => {
@@ -115,7 +120,8 @@ const getTranscript = async (sessionId: number) => {
 			id: messages.id,
 			entity: messages.entity,
 			content: messages.content,
-			createdAt: messages.createdAt
+			createdAt: messages.createdAt,
+			payload: messages.payload
 		})
 		.from(messages)
 		.where(eq(messages.sessionId, sessionId))
@@ -174,15 +180,13 @@ export const listChatSessions = async (hospitalId: string) => {
 export const createChatSession = async (hospitalId: string, payload: unknown) => {
 	const input = (payload ?? {}) as { credentialId?: unknown; modelId?: unknown };
 	const credentialId = Number(input.credentialId);
-	const modelId = typeof input.modelId === 'string' ? input.modelId.trim() : '';
+	const requestedModelId = typeof input.modelId === 'string' ? input.modelId.trim() : '';
 
 	if (!Number.isInteger(credentialId) || credentialId <= 0) {
 		throw new ServiceError(400, 'credentialId is required.');
 	}
 
-	if (!modelId) {
-		throw new ServiceError(400, 'modelId is required.');
-	}
+	const modelId = requestedModelId || (await getUserDefaultModelId(hospitalId));
 
 	if (!getOpenAiModelPreset(modelId)) {
 		throw new ServiceError(400, '지원되지 않는 모델입니다.');
@@ -227,6 +231,23 @@ export const getChatMessages = async (hospitalId: string, sessionIdValue: unknow
 	return {
 		session: toSession(session),
 		messages: transcript
+	};
+};
+
+export const deleteChatSession = async (hospitalId: string, sessionIdValue: unknown) => {
+	const sessionId = parseSessionId(sessionIdValue);
+	await getOwnedSession(hospitalId, sessionId);
+
+	await drizzleDb.transaction(async (tx) => {
+		await tx.delete(messages).where(eq(messages.sessionId, sessionId));
+		await tx
+			.delete(messageSessions)
+			.where(and(eq(messageSessions.id, sessionId), eq(messageSessions.hospitalId, hospitalId)));
+	});
+
+	return {
+		sessionId,
+		message: '대화 세션이 삭제되었습니다.'
 	};
 };
 
@@ -288,6 +309,46 @@ export const sendChatMessage = async (hospitalId: string, payload: unknown) => {
 
 	const updatedSession = await getOwnedSession(hospitalId, sessionId);
 	const updatedTranscript = await getTranscript(sessionId);
+
+	return {
+		session: toSession(updatedSession),
+		messages: updatedTranscript
+	};
+};
+
+export const appendAssistantMessageToSession = async ({
+	hospitalId,
+	sessionIdValue,
+	content,
+	payload = null
+}: {
+	hospitalId: string;
+	sessionIdValue: unknown;
+	content: string;
+	payload?: AssistantPayload | null;
+}) => {
+	const sessionId = parseSessionId(sessionIdValue);
+	const session = await getOwnedSession(hospitalId, sessionId);
+	const createdAt = new Date();
+
+	await drizzleDb.transaction(async (tx) => {
+		await tx.insert(messages).values({
+			sessionId,
+			entity: 'assistant',
+			content,
+			payload,
+			createdAt,
+			updatedAt: createdAt
+		});
+
+		await tx
+			.update(messageSessions)
+			.set({ updatedAt: createdAt })
+			.where(eq(messageSessions.id, sessionId));
+	});
+
+	const updatedSession = await getOwnedSession(hospitalId, session.id);
+	const updatedTranscript = await getTranscript(session.id);
 
 	return {
 		session: toSession(updatedSession),

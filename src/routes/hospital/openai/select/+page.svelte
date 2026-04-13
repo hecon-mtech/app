@@ -16,7 +16,7 @@
 		return typeof payload?.message === 'string' ? payload.message : fallback;
 	};
 
-	const nextPath = () => page.url.searchParams.get('next') || '/hospital/dashboards';
+	const nextPath = () => page.url.searchParams.get('next') || '/hospital/chat';
 
 	const formatUpdatedAt = (value: string) => {
 		const date = new Date(value);

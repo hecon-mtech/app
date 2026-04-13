@@ -1,10 +1,12 @@
 import { writable } from 'svelte/store';
+import type { AssistantPayload } from '$lib/chat/render-blocks';
 
 export type DashboardConversationEntry = {
 	id: number;
 	role: 'assistant' | 'user';
 	content: string;
 	createdAt: string;
+	payload?: AssistantPayload | null;
 };
 
 export type DashboardConversationSession = {
@@ -65,6 +67,21 @@ const upsertDashboardConversationSession = (session: DashboardConversationSessio
 	}));
 };
 
+const removeDashboardConversationSession = (sessionId: number) => {
+	patchDashboardConversation((state) => {
+		const remainingSessions = sortSessions(state.sessions.filter((item) => item.id !== sessionId));
+		const nextActiveSessionId =
+			state.activeSessionId === sessionId ? remainingSessions[0]?.id ?? null : state.activeSessionId;
+
+		return {
+			...state,
+			sessions: remainingSessions,
+			activeSessionId: nextActiveSessionId,
+			entries: nextActiveSessionId === state.activeSessionId ? state.entries : []
+		};
+	});
+};
+
 const selectDashboardConversationSession = (sessionId: number | null) => {
 	patchDashboardConversation((state) => ({
 		...state,
@@ -97,6 +114,7 @@ const resetDashboardConversation = () => {
 
 export {
 	dashboardConversation,
+	removeDashboardConversationSession,
 	resetDashboardConversation,
 	selectDashboardConversationSession,
 	setDashboardConversationEntries,

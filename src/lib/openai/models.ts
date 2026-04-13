@@ -82,7 +82,7 @@ export const OPENAI_MODEL_PRESETS: OpenAiModelPreset[] = [
 	}
 ];
 
-export const DEFAULT_OPENAI_MODEL_ID = OPENAI_MODEL_PRESETS[0]?.id ?? 'gpt-5.3-codex';
+export const DEFAULT_OPENAI_MODEL_ID = 'gpt-5.2-codex';
 
 export const getOpenAiModelPreset = (modelId: string | null | undefined) =>
 	OPENAI_MODEL_PRESETS.find((preset) => preset.id === modelId) ?? null;

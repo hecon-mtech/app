@@ -3,6 +3,8 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { users } from '../../src/lib/server/db/schema';
 import { hashPassword } from '../../src/lib/server/auth';
 
+const defaultModelId = 'gpt-5.2-codex';
+
 const dbConfig = {
 	host: process.env.DB_HOST ?? '127.0.0.1',
 	port: Number(process.env.DB_PORT ?? 5432),
@@ -12,8 +14,8 @@ const dbConfig = {
 	ssl:
 		process.env.DB_SSL === 'true'
 			? {
-					rejectUnauthorized: false
-				}
+				rejectUnauthorized: false
+			}
 			: false
 };
 
@@ -28,6 +30,7 @@ const seedUsers: Array<typeof users.$inferInsert> = [
 		name: '하나이비인후과병원',
 		password: hashed,
 		description: 'hospital',
+		defaultModelId,
 		createdAt: now,
 		updatedAt: now
 	},
@@ -36,40 +39,14 @@ const seedUsers: Array<typeof users.$inferInsert> = [
 		name: '이푸른병원',
 		password: hashed,
 		description: 'hospital',
-		createdAt: now,
-		updatedAt: now
-	},
-	{
-		id: 'SUPP0001',
-		name: '동아메디',
-		password: hashed,
-		description: 'supplier',
-		createdAt: now,
-		updatedAt: now
-	},
-	{
-		id: 'SUPP0002',
-		name: '한빛약품',
-		password: hashed,
-		description: 'supplier',
-		createdAt: now,
-		updatedAt: now
-	},
-	{
-		id: 'SUPP0003',
-		name: '세움헬스케어',
-		password: hashed,
-		description: 'supplier',
+		defaultModelId,
 		createdAt: now,
 		updatedAt: now
 	}
 ];
 
-await db
-	.insert(users)
-	.values(seedUsers)
-	.onConflictDoNothing();
+await db.insert(users).values(seedUsers).onConflictDoNothing();
 
 await pool.end();
 
-console.log('Seeded example users (hospital + supplier).');
+console.log('Seeded example users.');

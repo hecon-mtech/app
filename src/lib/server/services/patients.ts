@@ -1,8 +1,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { asyncBufferFromFile, parquetReadObjects } from 'hyparquet';
+import { asyncBufferFromFile, parquetReadObjects, type AsyncBuffer } from 'hyparquet';
 import { parse } from 'csv-parse/sync';
 import { and, eq, gte, lte } from 'drizzle-orm';
+import * as XLSX from 'xlsx';
 import { drizzleDb } from '$lib/server/db';
 import { getRepresentativeDrugsByAtcPrefixes } from '$lib/server/db/drug-groups';
 import { inventory, patients } from '$lib/server/db/schema';
@@ -292,5 +293,236 @@ export const pullEmsPatientData = async (hospitalId: string) => {
 			inpatient: inpatientResult.source,
 			usage: 'LAVAR_persistences.csv(real)'
 		}
+	};
+};
+
+export type PatientImportType = 'inpatient' | 'outpatient';
+
+type UploadedPatientInputRow = {
+	id?: unknown;
+	date?: unknown;
+	sex?: unknown;
+	age?: unknown;
+	primary_diagnosis?: unknown;
+	secondary_diagnosis?: unknown;
+	prescription?: unknown;
+	department?: unknown;
+};
+
+const asyncBufferFromArrayBuffer = (arrayBuffer: ArrayBuffer): AsyncBuffer => ({
+	byteLength: arrayBuffer.byteLength,
+	slice: (start, end) => arrayBuffer.slice(start, end)
+});
+
+const normalizeHeader = (value: unknown) =>
+	String(value ?? '')
+		.trim()
+		.toLowerCase()
+		.replaceAll(/[^a-z0-9가-힣]+/g, '');
+
+const HEADER_ALIASES = {
+	id: ['id', 'patientid', 'patient_id', '환자id', '환자번호'],
+	date: ['date', 'visitdate', 'visit_date', '방문일', '내원일', '진료일', '방문날짜'],
+	sex: ['sex', 'gender', '성별'],
+	age: ['age', '나이', '연령'],
+	primary_diagnosis: ['primarydiagnosis', 'primary_diagnosis', '주상병', '주진단'],
+	secondary_diagnosis: ['secondarydiagnosis', 'secondary_diagnosis', '부상병', '부진단'],
+	prescription: ['prescription', '처방', '처방내역'],
+	department: ['department', 'dept', '진료과', '부서']
+} satisfies Record<keyof UploadedPatientInputRow, string[]>;
+
+const resolvePatientType = (input: unknown, fallbackFileName = ''): PatientImportType => {
+	const normalized = String(input ?? '').trim().toLowerCase();
+	if (normalized === 'inpatient' || normalized === 'outpatient') {
+		return normalized;
+	}
+
+	const fileName = fallbackFileName.toLowerCase();
+	if (fileName.includes('inpatient') || fileName.includes('입원')) {
+		return 'inpatient';
+	}
+
+	if (fileName.includes('outpatient') || fileName.includes('외래')) {
+		return 'outpatient';
+	}
+
+	throw new ServiceError(400, '파일명에 inpatient 또는 outpatient를 포함하거나 patientType을 지정해주세요.');
+};
+
+const normalizeWorkbookDate = (value: unknown) => {
+	if (typeof value === 'number') {
+		const parsed = XLSX.SSF.parse_date_code(value);
+		if (parsed) {
+			return new Date(parsed.y, parsed.m - 1, parsed.d);
+		}
+	}
+
+	return toDate(value);
+};
+
+const toUploadedPatientRows = (
+	rows: UploadedPatientInputRow[],
+	hospitalId: string,
+	type: PatientImportType
+) => {
+	const patientRows: Array<Omit<typeof patients.$inferInsert, 'id'>> = [];
+
+	for (const row of rows) {
+		const now = new Date();
+		const patientId = toInteger(row.id);
+		const visitDate = normalizeWorkbookDate(row.date);
+		const sex = toInteger(row.sex);
+		const age = toInteger(row.age);
+		const primaryDiagnosis = toText(row.primary_diagnosis);
+		const secondaryDiagnosis = toText(row.secondary_diagnosis);
+		const prescription = toText(row.prescription);
+		const department = toText(row.department);
+
+		if (
+			patientId === null ||
+			visitDate === null ||
+			sex === null ||
+			age === null ||
+			!primaryDiagnosis ||
+			!secondaryDiagnosis ||
+			!prescription ||
+			!department
+		) {
+			continue;
+		}
+
+		patientRows.push({
+			hospitalId,
+			patientId,
+			visitDate,
+			type,
+			sex,
+			age,
+			primaryDiagnosis,
+			secondaryDiagnosis,
+			prescription,
+			department,
+			createdAt: now,
+			updatedAt: now
+		});
+	}
+
+	return patientRows.sort((left, right) => left.visitDate.getTime() - right.visitDate.getTime());
+};
+
+const readPatientsFromParquetBuffer = async (
+	arrayBuffer: ArrayBuffer,
+	hospitalId: string,
+	type: PatientImportType
+) => {
+	const rows = (await parquetReadObjects({ file: asyncBufferFromArrayBuffer(arrayBuffer) })) as PatientParquetRow[];
+	return toUploadedPatientRows(rows, hospitalId, type);
+};
+
+const mapWorkbookRow = (row: Record<string, unknown>) => {
+	const normalizedEntries = new Map(
+		Object.entries(row).map(([key, value]) => [normalizeHeader(key), value])
+	);
+
+	const getValue = (key: keyof UploadedPatientInputRow) => {
+		for (const alias of HEADER_ALIASES[key]) {
+			const value = normalizedEntries.get(alias);
+			if (value !== undefined) return value;
+		}
+		return undefined;
+	};
+
+	return {
+		id: getValue('id'),
+		date: getValue('date'),
+		sex: getValue('sex'),
+		age: getValue('age'),
+		primary_diagnosis: getValue('primary_diagnosis'),
+		secondary_diagnosis: getValue('secondary_diagnosis'),
+		prescription: getValue('prescription'),
+		department: getValue('department')
+	} satisfies UploadedPatientInputRow;
+};
+
+const readPatientsFromWorkbookBuffer = (
+	arrayBuffer: ArrayBuffer,
+	hospitalId: string,
+	type: PatientImportType
+) => {
+	const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+	const sheetName = workbook.SheetNames[0];
+	if (!sheetName) {
+		throw new ServiceError(400, '엑셀 파일에서 시트를 찾을 수 없습니다.');
+	}
+
+	const sheet = workbook.Sheets[sheetName];
+	const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+		defval: '',
+		raw: true
+	});
+
+	return toUploadedPatientRows(rows.map(mapWorkbookRow), hospitalId, type);
+};
+
+export const importUploadedPatientData = async ({
+	hospitalId,
+	fileName,
+	arrayBuffer,
+	patientType
+}: {
+	hospitalId: string;
+	fileName: string;
+	arrayBuffer: ArrayBuffer;
+	patientType?: string | null;
+}) => {
+	const normalizedFileName = String(fileName ?? '').trim();
+	const extension = path.extname(normalizedFileName).toLowerCase();
+	const type = resolvePatientType(patientType, normalizedFileName);
+
+	const rows =
+		extension === '.parquet'
+			? await readPatientsFromParquetBuffer(arrayBuffer, hospitalId, type)
+			: extension === '.xlsx'
+				? readPatientsFromWorkbookBuffer(arrayBuffer, hospitalId, type)
+				: null;
+
+	if (!rows) {
+		throw new ServiceError(400, '지원하지 않는 파일 형식입니다. .xlsx 또는 .parquet 파일만 업로드할 수 있습니다.');
+	}
+
+	if (rows.length === 0) {
+		throw new ServiceError(400, '업로드 파일에서 저장 가능한 환자 데이터를 찾지 못했습니다.');
+	}
+
+	const startDate = rows[0]?.visitDate;
+	const endDate = rows[rows.length - 1]?.visitDate;
+	if (!startDate || !endDate) {
+		throw new ServiceError(400, '업로드 파일의 방문일 정보를 해석하지 못했습니다.');
+	}
+
+	await drizzleDb.transaction(async (tx) => {
+		await tx
+			.delete(patients)
+			.where(
+				and(
+					eq(patients.hospitalId, hospitalId),
+					eq(patients.type, type),
+					gte(patients.visitDate, startDate),
+					lte(patients.visitDate, endDate)
+				)
+			);
+
+		await chunkedInsert(rows, async (chunk) => {
+			await tx.insert(patients).values(chunk);
+		});
+	});
+
+	return {
+		message: `${type === 'inpatient' ? '입원' : '외래'} 환자 데이터 ${rows.length}건을 반영했습니다.`,
+		patientType: type,
+		insertedCount: rows.length,
+		startDate: toDateStr(startDate),
+		endDate: toDateStr(endDate),
+		fileName: normalizedFileName
 	};
 };
