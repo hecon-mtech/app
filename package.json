@@ -12,6 +12,7 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"seed:calendar": "tsx script/seed/seed-calendar.ts",
 		"seed:drugs": "tsx script/seed/seed-drugs.ts",
+		"seed:inventory:hosp0001": "tsx script/seed/seed-inventory-hosp0001.ts",
 		"seed:patient:hosp0001": "tsx script/seed/seed-patient-hosp0001.ts",
 		"seed:users": "tsx script/seed/seed-users.ts",
 		"seed:all": "npm run db:reset && npm run db:migrate && npm run seed:users && npm run seed:drugs && npm run seed:calendar",

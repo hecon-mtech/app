@@ -1,4 +1,4 @@
-import { numeric, pgEnum, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { index, numeric, pgEnum, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 import { drugs } from './catalog';
 import { users } from './users';
 
@@ -22,11 +22,10 @@ export const inventory = pgTable(
 		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 	},
 	(table) => ({
-		logicalRowUidx: uniqueIndex('inventory_hospital_date_drug_type_uidx').on(
+		hospitalIdx: index('inventory_hospital_date_drug_idx').on(
 			table.hospitalId,
 			table.dateStr,
 			table.drugId,
-			table.type
 		)
 	})
 );

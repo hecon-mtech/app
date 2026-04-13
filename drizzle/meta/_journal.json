@@ -50,6 +50,20 @@
 	  "when": 1776126200000,
 	  "tag": "0006_hospital_model_x",
 	  "breakpoints": true
+	},
+	{
+	  "idx": 7,
+	  "version": "7",
+	  "when": 1776127200000,
+	  "tag": "0007_drop_inventory_unique_index",
+	  "breakpoints": true
+	},
+	{
+	  "idx": 8,
+	  "version": "7",
+	  "when": 1776128200000,
+	  "tag": "0008_inventory_ordered_index",
+	  "breakpoints": true
     }
   ]
 }
