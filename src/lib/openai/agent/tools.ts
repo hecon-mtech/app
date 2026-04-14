@@ -1,4 +1,4 @@
-import { summarizeRecentPatients, getCurrentDate } from '$lib/server/tools';
+import { summarizeRecentPatients, getCurrentDate, createAuctionOrder, getCurrentAuctionStatus } from '$lib/server/tools';
 import { summarizeRecentInventoryTool, inventoryPredictionTool, suggestOrderTool } from '$lib/server/tools/inventory';
 import { searchDrugsTool } from '$lib/server/tools/drugs';
 import { ServiceError } from '$lib/server/services/errors';
@@ -38,7 +38,21 @@ const EXECUTORS: Record<string, OpenAiToolExecutor> = {
 	suggest_order: (hospitalId, args) =>
 		suggestOrderTool({ hospitalId }, { drug_id: args.drug_id as string | undefined }),
 	search_drugs: (_hospitalId, args) => searchDrugsTool(String(args.query ?? '')),
-	get_current_date: () => getCurrentDate()
+	get_current_date: () => getCurrentDate(),
+	register_auction: async (hospitalId, args) => {
+		const orders = Array.isArray(args.orders) ? args.orders : [];
+		const results = [];
+		for (const order of orders) {
+			const o = order as Record<string, unknown>;
+			results.push(await createAuctionOrder({ hospitalId }, {
+				drugId: String(o.drug_id ?? ''),
+				quantity: Number(o.quantity ?? 0)
+			}));
+		}
+		return { registered: results };
+	},
+	get_current_auction_status: (hospitalId) =>
+		getCurrentAuctionStatus({ hospitalId })
 };
 
 const OPENAI_TOOL_REGISTRY = toolDefs.map((def) => ({

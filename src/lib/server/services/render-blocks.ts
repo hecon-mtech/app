@@ -322,13 +322,59 @@ export const buildRenderBlocksFromToolTrace = (toolTrace: Array<Record<string, u
 		}
 
 		if (name === 'get_current_auction_status') {
-			const block = toTableBlock(`auction-status-${index}`, '현재 경매 현황', {
-				columns: ['title', 'quantity', 'bidCount', 'minBidPriceLabel', 'remainingTimeLabel', 'isExpired'],
-				rows: Array.isArray(result.orders)
-					? (result.orders as Array<Record<string, unknown>>)
-					: []
-			});
-			if (block) blocks.push(block);
+			const orders = Array.isArray(result.orders) ? (result.orders as Array<Record<string, unknown>>) : [];
+			for (const [orderIndex, order] of orders.entries()) {
+				const title = truncate(String(order.title ?? ''), 20);
+				const drugId = escapeHtml(order.drugId ?? order.id ?? '');
+				const qty = escapeHtml(order.quantity ?? '');
+				const bidCount = Number(order.bidCount ?? 0);
+				const minBid = order.minBidPriceLabel ? escapeHtml(order.minBidPriceLabel) : '';
+				const remaining = escapeHtml(order.remainingTimeLabel ?? '');
+				const expired = order.isExpired === true;
+
+				blocks.push({
+					id: `auction-card-${index}-${orderIndex}`,
+					type: 'html',
+					html: `
+						<div class="auction-card${expired ? ' auction-card--expired' : ''}">
+							<div class="auction-card__header">
+								<span class="auction-card__name">${escapeHtml(title)}</span>
+								<span class="auction-card__id">${drugId}</span>
+							</div>
+							<div class="auction-card__body">
+								<div class="auction-card__stat">
+									<span class="auction-card__label">수량</span>
+									<span class="auction-card__value">${qty}</span>
+								</div>
+								<div class="auction-card__stat">
+									<span class="auction-card__label">입찰</span>
+									<span class="auction-card__value">${bidCount}건${minBid ? ` · ${minBid}` : ''}</span>
+								</div>
+								<div class="auction-card__stat">
+									<span class="auction-card__label">남은 시간</span>
+									<span class="auction-card__value ${expired ? 'auction-card__expired-text' : ''}">${remaining}</span>
+								</div>
+							</div>
+						</div>
+					`
+				});
+			}
+			continue;
+		}
+
+		if (name === 'register_auction') {
+			const registered = Array.isArray(result.registered) ? (result.registered as Array<Record<string, unknown>>) : [];
+			if (registered.length > 0) {
+				const listItems = registered
+					.map((r) => `<li>${escapeHtml(r.drugId ?? '')} — ${escapeHtml(r.quantity ?? '')}개</li>`)
+					.join('');
+				blocks.push({
+					id: `auction-reg-${index}`,
+					type: 'html',
+					title: '경매 등록 완료',
+					html: `<ul class="auction-reg-list">${listItems}</ul>`
+				});
+			}
 			continue;
 		}
 

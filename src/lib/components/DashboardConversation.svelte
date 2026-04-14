@@ -44,7 +44,8 @@
 
 	const starterPrompts = [
 		'한 달 전부터 오늘까지의 환자 정보를 요약해줘',
-		'미래의 재고 관리 리스크 포인트를 정리해줘',
+		'앞으로 필요한 발주 물량을 말해줘',
+		'현재 진행중인 역경매 현황을 보여줘'
 	];
 
 	const assistantTitle = 'MTECHnician';

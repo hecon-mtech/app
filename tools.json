@@ -67,5 +67,37 @@
 			"required": ["query"],
 			"additionalProperties": false
 		}
+	},
+	{
+		"name": "register_auction",
+		"description": "발주 제안 결과를 기반으로 경매를 등록합니다. 여러 약품을 한 번에 등록할 수 있습니다. suggest_order 이후에 사용합니다.",
+		"parameters": {
+			"type": "object",
+			"properties": {
+				"orders": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"drug_id": { "type": "string", "description": "약품코드" },
+							"quantity": { "type": "number", "description": "발주 수량" }
+						},
+						"required": ["drug_id", "quantity"]
+					},
+					"description": "등록할 경매 목록. [{drug_id, quantity}, ...]"
+				}
+			},
+			"required": ["orders"],
+			"additionalProperties": false
+		}
+	},
+	{
+		"name": "get_current_auction_status",
+		"description": "현재 등록된 경매 현황을 조회합니다. 약품별 입찰 수, 최저 입찰가, 남은 시간 등을 카드 형태로 표시합니다.",
+		"parameters": {
+			"type": "object",
+			"properties": {},
+			"additionalProperties": false
+		}
 	}
 ]

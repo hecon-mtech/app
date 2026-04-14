@@ -196,4 +196,71 @@
 		text-transform: uppercase;
 		color: rgba(31, 43, 58, 0.5);
 	}
+
+	.render-html :global(.auction-card) {
+		display: grid;
+		gap: 8px;
+		padding: 14px 16px;
+		border-radius: 12px;
+		background: rgba(255, 255, 255, 0.7);
+		border: 1px solid rgba(31, 43, 58, 0.1);
+	}
+
+	.render-html :global(.auction-card--expired) {
+		opacity: 0.55;
+	}
+
+	.render-html :global(.auction-card__header) {
+		display: flex;
+		align-items: baseline;
+		gap: 8px;
+	}
+
+	.render-html :global(.auction-card__name) {
+		font-size: 0.92rem;
+		font-weight: 600;
+		color: var(--ink, #1f2b3a);
+	}
+
+	.render-html :global(.auction-card__id) {
+		font-size: 0.72rem;
+		color: rgba(31, 43, 58, 0.45);
+	}
+
+	.render-html :global(.auction-card__body) {
+		display: flex;
+		gap: 20px;
+		flex-wrap: wrap;
+	}
+
+	.render-html :global(.auction-card__stat) {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.render-html :global(.auction-card__label) {
+		font-size: 0.7rem;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		color: rgba(31, 43, 58, 0.45);
+	}
+
+	.render-html :global(.auction-card__value) {
+		font-size: 0.88rem;
+		color: var(--ink, #1f2b3a);
+	}
+
+	.render-html :global(.auction-card__expired-text) {
+		color: #cf4d66;
+		font-weight: 600;
+	}
+
+	.render-html :global(.auction-reg-list) {
+		margin: 0;
+		padding-left: 18px;
+		font-size: 0.88rem;
+		line-height: 1.6;
+	}
 </style>
