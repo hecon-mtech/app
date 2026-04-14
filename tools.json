@@ -1,10 +1,37 @@
 [
 	{
 		"name": "summarize_recent_patients",
-		"description": "최근 2주간 병원에 내원한 환자를 진료과별로 분석하여 Markdown 표로 반환합니다.",
+		"description": "병원 환자 데이터를 진료과별로 분석합니다. start_date만 주면 해당 일자 분석, start_date와 end_date를 함께 주면 기간 추이 분석. 날짜 미지정 시 최근 2주.",
 		"parameters": {
 			"type": "object",
-			"properties": {},
+			"properties": {
+				"start_date": { "type": "string", "description": "분석 시작일 (YYYY-MM-DD). 이 날짜만 주면 해당일 단일 분석." },
+				"end_date": { "type": "string", "description": "분석 종료일 (YYYY-MM-DD). start_date와 함께 주면 기간 분석." }
+			},
+			"additionalProperties": false
+		}
+	},
+	{
+		"name": "summarize_inventory",
+		"description": "병원 재고 데이터를 약품별로 요약합니다. start_date만 주면 해당일 재고 스냅샷, start_date와 end_date를 함께 주면 기간별 추이. 날짜 미지정 시 최근 2주.",
+		"parameters": {
+			"type": "object",
+			"properties": {
+				"start_date": { "type": "string", "description": "조회 시작일 (YYYY-MM-DD). 이 날짜만 주면 해당일 재고 스냅샷." },
+				"end_date": { "type": "string", "description": "조회 종료일 (YYYY-MM-DD). start_date와 함께 주면 기간 추이." }
+			},
+			"additionalProperties": false
+		}
+	},
+	{
+		"name": "search_drugs",
+		"description": "약품 마스터 데이터를 검색합니다. 약품코드, 약품명, 성분코드, 제조사, ATC코드, ATC명, FDA분류 등 모든 컬럼을 대상으로 검색합니다.",
+		"parameters": {
+			"type": "object",
+			"properties": {
+				"query": { "type": "string", "description": "검색어. 약품코드, 약품명, 제조사, ATC코드 등 어떤 값이든 가능합니다." }
+			},
+			"required": ["query"],
 			"additionalProperties": false
 		}
 	}

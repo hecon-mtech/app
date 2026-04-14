@@ -1,12 +1,12 @@
-import { ServiceError } from './errors';
-import { withRenderBlocks } from './render-blocks';
+import { ServiceError } from '$lib/server/services/errors';
+import { withRenderBlocks } from '$lib/server/services/render-blocks';
 import {
 	OPENAI_CODEX_RESPONSES_URL,
 	OPENAI_PLATFORM_RESPONSES_URL
 } from '$lib/openai/constants';
 import { DEFAULT_OPENAI_MODEL_ID, getOpenAiModelPreset } from '$lib/openai/models';
-import { getUsableOpenAiCredential } from './openai-credentials';
-import { OPENAI_READONLY_TOOLS, executeOpenAiTool, type OpenAiToolCall } from './openai-tools';
+import { getUsableOpenAiCredential } from './credentials';
+import { OPENAI_READONLY_TOOLS, executeOpenAiTool, type OpenAiToolCall } from './tools';
 
 type PersistedTranscriptMessage = {
 	role: 'user' | 'assistant';
@@ -379,8 +379,6 @@ export const generateAssistantReply = async ({
 
 		console.log(`[codex] depth=${depth} outputItems=${outputItems.length} toolCalls=${toolCalls.length} streamedText.len=${streamedText.length}`);
 		console.log(`[codex] outputItem types:`, outputItems.map((i) => i.type));
-		console.log(`[codex] response.output raw:`, JSON.stringify(response?.output)?.slice(0, 300));
-		console.log(`[codex] response.text:`, JSON.stringify(response?.text)?.slice(0, 300));
 		if (!response && !streamedText) {
 			throw new ServiceError(502, 'OpenAI 응답에서 최종 결과를 찾지 못했습니다.');
 		}
@@ -390,7 +388,6 @@ export const generateAssistantReply = async ({
 			console.log(`[codex] parseAssistantText result length=${content.length}`);
 			if (!content) {
 				console.error(`[codex] no content — response keys:`, response ? Object.keys(response) : null);
-				console.error(`[codex] response.output_text:`, response?.output_text);
 				throw new ServiceError(502, 'OpenAI 응답에서 assistant 메시지를 찾지 못했습니다.');
 			}
 

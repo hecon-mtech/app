@@ -5,7 +5,7 @@ import {
 	createOpenAiCredential,
 	deleteOpenAiCredential,
 	getOpenAiCredentialsState
-} from '$lib/server/services/openai-credentials';
+} from '$lib/openai/agent/credentials';
 import { OPENAI_SELECTED_CREDENTIAL_COOKIE } from '$lib/openai/constants';
 
 export const GET: RequestHandler = async ({ locals, cookies }) => {

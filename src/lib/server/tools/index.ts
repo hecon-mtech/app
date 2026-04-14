@@ -3,6 +3,7 @@ export * from './alerts';
 export * from './drugs';
 export * from './orders';
 export * from './forecast';
+export * from './inventory';
 export * from './patients';
 export * from './demo';
 export * from './messages';

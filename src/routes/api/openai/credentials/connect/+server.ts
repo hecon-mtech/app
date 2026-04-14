@@ -2,7 +2,7 @@ import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { OPENAI_SELECTED_CREDENTIAL_COOKIE } from '$lib/openai/constants';
 import { isServiceError } from '$lib/server/services/errors';
-import { connectOpenAiCredential } from '$lib/server/services/openai-credentials';
+import { connectOpenAiCredential } from '$lib/openai/agent/credentials';
 
 export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 	const userId = locals.user?.id ?? 'HOSP0001';

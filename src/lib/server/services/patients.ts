@@ -320,13 +320,28 @@ export type PatientSummary = {
 	byDate: Array<{ date: string; inpatient: number; outpatient: number; total: number }>;
 };
 
-export const summarizeRecentPatients = async (hospitalId: string): Promise<PatientSummary> => {
+export const summarizeRecentPatients = async (
+	hospitalId: string,
+	startDate?: string,
+	endDate?: string
+): Promise<PatientSummary> => {
 	const testMode = env.TEST_MODE === 'true';
-	const anchor = testMode ? new Date('2024-11-30') : new Date();
-	const endStr = toDateStr(anchor);
-	const startAnchor = new Date(anchor);
-	startAnchor.setDate(startAnchor.getDate() - 13);
-	const startStr = toDateStr(startAnchor);
+	let startStr: string;
+	let endStr: string;
+
+	if (startDate && endDate) {
+		startStr = startDate;
+		endStr = endDate;
+	} else if (startDate) {
+		startStr = startDate;
+		endStr = startDate;
+	} else {
+		const anchor = testMode ? new Date('2024-11-30') : new Date();
+		endStr = toDateStr(anchor);
+		const startAnchor = new Date(anchor);
+		startAnchor.setDate(startAnchor.getDate() - 13);
+		startStr = toDateStr(startAnchor);
+	}
 
 	const rows = await drizzleDb
 		.select({

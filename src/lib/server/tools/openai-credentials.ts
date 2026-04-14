@@ -1,7 +1,7 @@
 import {
 	createOpenAiCredential as createOpenAiCredentialService,
 	getOpenAiCredentialsState as getOpenAiCredentialsStateService
-} from '../services/openai-credentials';
+} from '$lib/openai/agent/credentials';
 import type { HospitalToolContext } from './types';
 
 export const getOpenAiCredentialsState = ({ hospitalId }: HospitalToolContext) =>

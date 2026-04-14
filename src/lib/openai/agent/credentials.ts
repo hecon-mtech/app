@@ -7,7 +7,7 @@ import {
 	OPENAI_OAUTH_REDIRECT_URI,
 	OPENAI_OAUTH_TOKEN_URL
 } from '$lib/openai/constants';
-import { ServiceError } from './errors';
+import { ServiceError } from '$lib/server/services/errors';
 
 export type StoredOpenAiOauth = {
 	type: 'oauth';

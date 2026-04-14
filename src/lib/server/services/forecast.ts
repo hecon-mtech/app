@@ -312,7 +312,7 @@ export const getUsageForecastDrugOptions = async ({
 export const runBentomlForecast = async (hospitalId: string) => {
 	const testMode = env.TEST_MODE === 'true';
 	const predictionStartDate = testMode
-		? '2024-11-30'
+		? '2024-11-24' // Last week + Sunday of November
 		: new Date().toISOString().split('T')[0];
 
 	const bentoUrl = env.BENTOML_URL ?? 'http://localhost:3000';

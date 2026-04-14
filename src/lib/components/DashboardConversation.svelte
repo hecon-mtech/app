@@ -667,6 +667,15 @@
 								{#if message.title}
 									<div class="assistant-bubble-title">{message.title}</div>
 								{/if}
+								{#if message.role === 'assistant' && (message.payload?.toolTrace?.length ?? 0) > 0}
+									<div class="tool-trace">
+										<span class="tool-trace-label">사고 과정</span>
+										<div class="tool-trace-step">질문자 의도 파악.</div>
+										{#each message.payload?.toolTrace ?? [] as step}
+											<div class="tool-trace-step">기능(Tool) 사용: {String((step).name ?? '')}</div>
+										{/each}
+									</div>
+								{/if}
 								<div class="assistant-bubble-content">
 									{#if message.role === 'assistant' && (message.payload?.renderBlocks?.length ?? 0) > 0}
 										<StructuredRenderBlocks blocks={message.payload?.renderBlocks ?? []} />
@@ -902,7 +911,7 @@
 		padding: 8px 12px;
 		border: 1px solid rgba(255, 255, 255, 0.52);
 		border-radius: 999px;
-		background: rgba(255, 255, 255, 0.22);
+		background: transparent;
 		font: inherit;
 		font-size: 0.82rem;
 		font-weight: 600;
@@ -967,19 +976,48 @@
 	}
 
 	.assistant-bubble {
-		max-width: min(820px, 86%);
+		max-width: min(1080px, 92%);
 		padding: 14px 16px;
 		border-radius: 18px;
 		background: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(244, 250, 255, 0.16));
-		border: 1px solid rgba(255, 255, 255, 0.56);
+		border: 1.5px solid rgba(31, 99, 181, 0.22);
 		box-shadow:
 			0 16px 36px rgba(31, 74, 121, 0.12),
 			inset 0 1px 0 rgba(255, 255, 255, 0.8),
 			inset 0 -1px 0 rgba(255, 255, 255, 0.14);
 	}
 
+	.assistant-bubble:not(.is-user) {
+		max-width: min(1620px, 98%);
+	}
+
 	.assistant-bubble.is-user {
 		background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(223, 241, 255, 0.22));
+	}
+
+	.tool-trace {
+		margin-bottom: 12px;
+		padding: 10px 14px;
+		border-radius: 12px;
+		background: rgba(31, 43, 58, 0.03);
+		border: 1px solid rgba(31, 43, 58, 0.06);
+		display: flex;
+		flex-direction: column;
+		gap: 3px;
+	}
+
+	.tool-trace-label {
+		font-size: 0.72rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: rgba(31, 43, 58, 0.32);
+		margin-bottom: 2px;
+	}
+
+	.tool-trace-step {
+		font-size: 0.78rem;
+		color: rgba(31, 43, 58, 0.36);
 	}
 
 	.assistant-bubble-title {

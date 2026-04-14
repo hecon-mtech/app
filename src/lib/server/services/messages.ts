@@ -6,8 +6,8 @@ import { openAiCredentials } from '$lib/server/db/schema/users';
 import { getOpenAiModelPreset } from '$lib/openai/models';
 import type { AssistantPayload } from '$lib/chat/render-blocks';
 import { ServiceError } from './errors';
-import { generateAssistantReply } from './openai-codex';
-import { getOpenAiCredentialById } from './openai-credentials';
+import { generateAssistantReply } from '$lib/openai/agent/codex';
+import { getOpenAiCredentialById } from '$lib/openai/agent/credentials';
 import { getUserDefaultModelId } from './user-preferences';
 
 export type ChatSession = {

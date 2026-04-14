@@ -1,5 +1,7 @@
 import { summarizeRecentPatients } from '$lib/server/tools';
-import { ServiceError } from './errors';
+import { summarizeInventoryTool } from '$lib/server/tools/inventory';
+import { searchDrugsTool } from '$lib/server/tools/drugs';
+import { ServiceError } from '$lib/server/services/errors';
 import toolDefs from '../../../../tools.json';
 
 export type OpenAiToolDefinition = {
@@ -18,7 +20,17 @@ export type OpenAiToolCall = {
 type OpenAiToolExecutor = (hospitalId: string, args: Record<string, unknown>) => Promise<unknown> | unknown;
 
 const EXECUTORS: Record<string, OpenAiToolExecutor> = {
-	summarize_recent_patients: (hospitalId) => summarizeRecentPatients({ hospitalId })
+	summarize_recent_patients: (hospitalId, args) =>
+		summarizeRecentPatients(
+			{ hospitalId },
+			{ start_date: args.start_date as string, end_date: args.end_date as string }
+		),
+	summarize_inventory: (hospitalId, args) =>
+		summarizeInventoryTool(
+			{ hospitalId },
+			{ start_date: args.start_date as string, end_date: args.end_date as string }
+		),
+	search_drugs: (_hospitalId, args) => searchDrugsTool(String(args.query ?? ''))
 };
 
 const OPENAI_TOOL_REGISTRY = toolDefs.map((def) => ({

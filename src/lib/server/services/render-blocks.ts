@@ -1,5 +1,6 @@
 import type { AssistantPayload, ChatRenderBlock } from '$lib/chat/render-blocks';
 import type { PatientSummary } from './patients';
+import type { InventorySummary } from './inventory-summary';
 
 const escapeHtml = (value: unknown) =>
 	String(value ?? '')
@@ -156,6 +157,55 @@ const isPatientSummary = (result: Record<string, unknown>): result is PatientSum
 	Array.isArray(result.byDepartment) &&
 	Array.isArray(result.byDate);
 
+const isInventorySummary = (result: Record<string, unknown>): result is InventorySummary =>
+	typeof result.period === 'object' &&
+	typeof result.totalDrugs === 'number' &&
+	Array.isArray(result.byDrug) &&
+	Array.isArray(result.byDate);
+
+const buildInventoryEChartsBlocks = (result: InventorySummary, index: number): ChatRenderBlock[] => {
+	const blocks: ChatRenderBlock[] = [];
+
+	const topDrugs = result.byDrug.slice(0, 15);
+	if (topDrugs.length > 0) {
+		blocks.push({
+			id: `inventory-bar-${index}`,
+			type: 'echarts',
+			title: '약품별 사용량 (상위)',
+			option: {
+				tooltip: { trigger: 'axis' },
+				xAxis: {
+					type: 'category',
+					data: topDrugs.map((d) => d.drugName),
+					axisLabel: { rotate: 30 }
+				},
+				yAxis: { type: 'value' },
+				series: [
+					{ name: '사용량', type: 'bar', data: topDrugs.map((d) => d.totalFlow) }
+				]
+			}
+		});
+	}
+
+	if (result.byDate.length > 1) {
+		blocks.push({
+			id: `inventory-line-${index}`,
+			type: 'echarts',
+			title: '일별 재고 사용 추이',
+			option: {
+				tooltip: { trigger: 'axis' },
+				xAxis: { type: 'category', data: result.byDate.map((d) => d.date) },
+				yAxis: { type: 'value' },
+				series: [
+					{ name: '총 사용량', type: 'line', data: result.byDate.map((d) => d.totalFlow), smooth: true }
+				]
+			}
+		});
+	}
+
+	return blocks;
+};
+
 export const buildRenderBlocksFromToolTrace = (toolTrace: Array<Record<string, unknown>>): ChatRenderBlock[] => {
 	const blocks: ChatRenderBlock[] = [];
 
@@ -186,10 +236,23 @@ export const buildRenderBlocksFromToolTrace = (toolTrace: Array<Record<string, u
 					: []
 			});
 			if (block) blocks.push(block);
+			continue;
 		}
 
 		if (name === 'summarize_recent_patients' && isPatientSummary(result)) {
 			blocks.push(...buildPatientEChartsBlocks(result, index));
+			continue;
+		}
+
+		if (name === 'summarize_inventory' && isInventorySummary(result)) {
+			blocks.push(...buildInventoryEChartsBlocks(result, index));
+			continue;
+		}
+
+		if (name === 'search_drugs') {
+			const block = toTableBlock(`drug-search-${index}`, '약품 검색 결과', result);
+			if (block) blocks.push(block);
+			continue;
 		}
 	}
 
