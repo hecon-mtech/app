@@ -4,6 +4,7 @@ import { asyncBufferFromFile, parquetReadObjects, type AsyncBuffer } from 'hypar
 import { parse } from 'csv-parse/sync';
 import { and, eq, gte, lte } from 'drizzle-orm';
 import * as XLSX from 'xlsx';
+import { env } from '$env/dynamic/private';
 import { drizzleDb } from '$lib/server/db';
 import { getRepresentativeDrugsByAtcPrefixes } from '$lib/server/db/drug-groups';
 import { inventory, patients } from '$lib/server/db/schema';
@@ -302,6 +303,109 @@ export const pullEmsPatientData = async (hospitalId: string) => {
 			inpatient: inpatientResult.source,
 			usage: 'LAVAR_persistences.csv(real)'
 		}
+	};
+};
+
+export type PatientSummary = {
+	period: { start: string; end: string };
+	total: { inpatient: number; outpatient: number };
+	byDepartment: Array<{
+		dept: string;
+		inpatient: number;
+		outpatient: number;
+		total: number;
+		avgAge: number;
+		topDiagnosis: string;
+	}>;
+	byDate: Array<{ date: string; inpatient: number; outpatient: number; total: number }>;
+};
+
+export const summarizeRecentPatients = async (hospitalId: string): Promise<PatientSummary> => {
+	const testMode = env.TEST_MODE === 'true';
+	const anchor = testMode ? new Date('2024-11-30') : new Date();
+	const endStr = toDateStr(anchor);
+	const startAnchor = new Date(anchor);
+	startAnchor.setDate(startAnchor.getDate() - 13);
+	const startStr = toDateStr(startAnchor);
+
+	const rows = await drizzleDb
+		.select({
+			type: patients.type,
+			age: patients.age,
+			diagnosisCode: patients.diagnosisCode,
+			departmentStr: patients.departmentStr,
+			visitDateStr: patients.visitDateStr
+		})
+		.from(patients)
+		.where(
+			and(
+				eq(patients.hospitalId, hospitalId),
+				gte(patients.visitDateStr, startStr),
+				lte(patients.visitDateStr, endStr)
+			)
+		);
+
+	type DeptStats = {
+		inpatient: number;
+		outpatient: number;
+		diagnosisCounts: Map<string, number>;
+		totalAge: number;
+	};
+
+	type DateStats = { inpatient: number; outpatient: number };
+
+	const byDept = new Map<string, DeptStats>();
+	const byDate = new Map<string, DateStats>();
+
+	for (const row of rows) {
+		const dept = row.departmentStr;
+		if (!byDept.has(dept)) {
+			byDept.set(dept, { inpatient: 0, outpatient: 0, diagnosisCounts: new Map(), totalAge: 0 });
+		}
+		const deptStats = byDept.get(dept)!;
+		if (row.type === 'inpatient') deptStats.inpatient += 1;
+		else deptStats.outpatient += 1;
+		deptStats.totalAge += row.age;
+		deptStats.diagnosisCounts.set(row.diagnosisCode, (deptStats.diagnosisCounts.get(row.diagnosisCode) ?? 0) + 1);
+
+		const date = row.visitDateStr;
+		if (!byDate.has(date)) byDate.set(date, { inpatient: 0, outpatient: 0 });
+		const dateStats = byDate.get(date)!;
+		if (row.type === 'inpatient') dateStats.inpatient += 1;
+		else dateStats.outpatient += 1;
+	}
+
+	const sortedDepts = Array.from(byDept.entries())
+		.sort(([, a], [, b]) => (b.inpatient + b.outpatient) - (a.inpatient + a.outpatient))
+		.map(([dept, stats]) => {
+			const total = stats.inpatient + stats.outpatient;
+			return {
+				dept,
+				inpatient: stats.inpatient,
+				outpatient: stats.outpatient,
+				total,
+				avgAge: total > 0 ? Math.round(stats.totalAge / total) : 0,
+				topDiagnosis: Array.from(stats.diagnosisCounts.entries()).sort(([, a], [, b]) => b - a)[0]?.[0] ?? '-'
+			};
+		});
+
+	const sortedDates = Array.from(byDate.entries())
+		.sort(([a], [b]) => a.localeCompare(b))
+		.map(([date, stats]) => ({
+			date,
+			inpatient: stats.inpatient,
+			outpatient: stats.outpatient,
+			total: stats.inpatient + stats.outpatient
+		}));
+
+	const totalInpatient = rows.filter((r) => r.type === 'inpatient').length;
+	const totalOutpatient = rows.filter((r) => r.type === 'outpatient').length;
+
+	return {
+		period: { start: startStr, end: endStr },
+		total: { inpatient: totalInpatient, outpatient: totalOutpatient },
+		byDepartment: sortedDepts,
+		byDate: sortedDates
 	};
 };
 

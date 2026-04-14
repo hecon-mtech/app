@@ -1,7 +1,8 @@
 import {
 	getUsageForecast as getUsageForecastService,
 	getUsageForecastDrugOptions as getUsageForecastDrugOptionsService,
-	refreshNextWeekPrediction as refreshNextWeekPredictionService
+	refreshNextWeekPrediction as refreshNextWeekPredictionService,
+	runBentomlForecast as runBentomlForecastService
 } from '../services/forecast';
 import type { HospitalToolContext } from './types';
 
@@ -22,3 +23,6 @@ export const listUsageForecastDrugOptions = (
 
 export const refreshNextWeekPrediction = ({ hospitalId }: HospitalToolContext) =>
 	refreshNextWeekPredictionService(hospitalId);
+
+export const runUsageForecast = ({ hospitalId }: HospitalToolContext) =>
+	runBentomlForecastService(hospitalId);

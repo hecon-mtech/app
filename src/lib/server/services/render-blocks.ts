@@ -1,4 +1,5 @@
 import type { AssistantPayload, ChatRenderBlock } from '$lib/chat/render-blocks';
+import type { PatientSummary } from './patients';
 
 const escapeHtml = (value: unknown) =>
 	String(value ?? '')
@@ -98,6 +99,63 @@ const toTableBlock = (id: string, title: string, result: Record<string, unknown>
 	} satisfies ChatRenderBlock;
 };
 
+const buildPatientEChartsBlocks = (result: PatientSummary, index: number): ChatRenderBlock[] => [
+	{
+		id: `patient-line-${index}`,
+		type: 'echarts',
+		title: '일별 방문자 추이',
+		option: {
+			tooltip: { trigger: 'axis' },
+			legend: { data: ['입원', '외래'] },
+			xAxis: { type: 'category', data: result.byDate.map((d) => d.date) },
+			yAxis: { type: 'value', minInterval: 1 },
+			series: [
+				{ name: '입원', type: 'line', data: result.byDate.map((d) => d.inpatient), smooth: true },
+				{ name: '외래', type: 'line', data: result.byDate.map((d) => d.outpatient), smooth: true }
+			]
+		}
+	},
+	{
+		id: `patient-pie-${index}`,
+		type: 'echarts',
+		title: '입원 / 외래 비율',
+		option: {
+			tooltip: { trigger: 'item', formatter: '{b}: {c}명 ({d}%)' },
+			series: [
+				{
+					type: 'pie',
+					radius: '60%',
+					data: [
+						{ name: '입원', value: result.total.inpatient },
+						{ name: '외래', value: result.total.outpatient }
+					]
+				}
+			]
+		}
+	},
+	{
+		id: `patient-bar-${index}`,
+		type: 'echarts',
+		title: '진료과별 방문자',
+		option: {
+			tooltip: { trigger: 'axis' },
+			legend: { data: ['입원', '외래'] },
+			xAxis: { type: 'category', data: result.byDepartment.map((d) => d.dept), axisLabel: { rotate: 30 } },
+			yAxis: { type: 'value', minInterval: 1 },
+			series: [
+				{ name: '입원', type: 'bar', data: result.byDepartment.map((d) => d.inpatient) },
+				{ name: '외래', type: 'bar', data: result.byDepartment.map((d) => d.outpatient) }
+			]
+		}
+	}
+];
+
+const isPatientSummary = (result: Record<string, unknown>): result is PatientSummary =>
+	typeof result.period === 'object' &&
+	typeof result.total === 'object' &&
+	Array.isArray(result.byDepartment) &&
+	Array.isArray(result.byDate);
+
 export const buildRenderBlocksFromToolTrace = (toolTrace: Array<Record<string, unknown>>): ChatRenderBlock[] => {
 	const blocks: ChatRenderBlock[] = [];
 
@@ -128,6 +186,10 @@ export const buildRenderBlocksFromToolTrace = (toolTrace: Array<Record<string, u
 					: []
 			});
 			if (block) blocks.push(block);
+		}
+
+		if (name === 'summarize_recent_patients' && isPatientSummary(result)) {
+			blocks.push(...buildPatientEChartsBlocks(result, index));
 		}
 	}
 

@@ -36,6 +36,7 @@ type ResponsesApiResult = {
 type ParsedSseResponse = {
 	response: Record<string, unknown> | null;
 	streamedText: string;
+	collectedOutputItems: ResponsesOutputItem[];
 };
 
 const ASSISTANT_INSTRUCTIONS = [
@@ -130,6 +131,8 @@ const parseSseResponse = async (response: Response): Promise<ParsedSseResponse> 
 		fullText += decoder.decode(value, { stream: true });
 	}
 
+	const seenEventTypes = new Set<string>();
+	const collectedOutputItems: ResponsesOutputItem[] = [];
 	for (const line of fullText.split('\n')) {
 		if (!line.startsWith('data: ')) continue;
 
@@ -143,16 +146,23 @@ const parseSseResponse = async (response: Response): Promise<ParsedSseResponse> 
 				part?: Record<string, unknown>;
 			};
 			const eventType = typeof data.type === 'string' ? data.type : '';
+			seenEventTypes.add(eventType);
 
-			if (eventType.endsWith('.delta') && !eventType.includes('function_call') && typeof data.delta === 'string' && data.delta) {
+			if (eventType === 'response.output_item.done' && data.item && typeof data.item === 'object') {
+				collectedOutputItems.push(data.item);
+			}
+
+			const isMessageDelta = eventType.endsWith('.delta') && !eventType.includes('function_call') && !eventType.includes('reasoning');
+
+			if (isMessageDelta && typeof data.delta === 'string' && data.delta) {
 				streamedChunks.push(data.delta);
 			}
 
-			if (eventType.endsWith('.delta') && !eventType.includes('function_call') && typeof data.text === 'string' && data.text) {
+			if (isMessageDelta && typeof data.text === 'string' && data.text) {
 				streamedChunks.push(data.text);
 			}
 
-			if (eventType.endsWith('.delta') && !eventType.includes('function_call') && data.part && typeof data.part === 'object') {
+			if (isMessageDelta && data.part && typeof data.part === 'object') {
 				const partText = collectTextFromContentItem(data.part);
 				if (partText) {
 					streamedChunks.push(partText);
@@ -190,13 +200,23 @@ const parseSseResponse = async (response: Response): Promise<ParsedSseResponse> 
 		}
 	}
 
-	if (!finalResponse && streamedChunks.length === 0) {
+	console.log(`[sse] event types seen:`, Array.from(seenEventTypes).join(', '));
+	console.log(`[sse] streamedChunks=${streamedChunks.length} completedTexts=${completedAssistantTexts.length} finalResponse=${!!finalResponse}`);
+	if (finalResponse) {
+		console.log(`[sse] finalResponse keys:`, Object.keys(finalResponse));
+		console.log(`[sse] finalResponse.output:`, JSON.stringify(finalResponse.output)?.slice(0, 300));
+	}
+
+	console.log(`[sse] collectedOutputItems=${collectedOutputItems.length} types:`, collectedOutputItems.map((i) => i.type));
+
+	if (!finalResponse && streamedChunks.length === 0 && collectedOutputItems.length === 0) {
 		throw new ServiceError(502, 'OpenAI SSE 응답에서 최종 결과를 찾지 못했습니다.');
 	}
 
 	return {
 		response: finalResponse,
-		streamedText: streamedChunks.join('').trim() || completedAssistantTexts.join('\n\n').trim()
+		streamedText: streamedChunks.join('').trim() || completedAssistantTexts.join('\n\n').trim(),
+		collectedOutputItems
 	};
 };
 
@@ -222,6 +242,10 @@ const parseAssistantText = (
 	const chunks: string[] = [];
 
 	for (const item of outputItems) {
+		if (item.type === 'reasoning') {
+			continue;
+		}
+
 		if (typeof item.output_text === 'string' && item.output_text.trim()) {
 			chunks.push(item.output_text.trim());
 		}
@@ -345,18 +369,28 @@ export const generateAssistantReply = async ({
 	const toolTrace: Array<Record<string, unknown>> = [];
 
 	for (let depth = 0; depth < 6; depth += 1) {
-		const { response, streamedText } = await runResponsesRequest(credential, modelId, promptCacheKey, workingInput);
+		const { response, streamedText, collectedOutputItems } = await runResponsesRequest(credential, modelId, promptCacheKey, workingInput);
+
+		const rawOutputItems = (Array.isArray(response?.output) && (response.output as unknown[]).length > 0)
+			? (response.output as ResponsesOutputItem[])
+			: collectedOutputItems;
+		const outputItems = rawOutputItems.map(sanitizeInputItem);
+		const toolCalls = parseToolCalls(outputItems);
+
+		console.log(`[codex] depth=${depth} outputItems=${outputItems.length} toolCalls=${toolCalls.length} streamedText.len=${streamedText.length}`);
+		console.log(`[codex] outputItem types:`, outputItems.map((i) => i.type));
+		console.log(`[codex] response.output raw:`, JSON.stringify(response?.output)?.slice(0, 300));
+		console.log(`[codex] response.text:`, JSON.stringify(response?.text)?.slice(0, 300));
 		if (!response && !streamedText) {
 			throw new ServiceError(502, 'OpenAI 응답에서 최종 결과를 찾지 못했습니다.');
 		}
-		const outputItems = Array.isArray(response?.output)
-			? (response.output as ResponsesOutputItem[]).map(sanitizeInputItem)
-			: [];
-		const toolCalls = parseToolCalls(outputItems);
 
 		if (toolCalls.length === 0) {
 			const content = parseAssistantText(response, outputItems, streamedText);
+			console.log(`[codex] parseAssistantText result length=${content.length}`);
 			if (!content) {
+				console.error(`[codex] no content — response keys:`, response ? Object.keys(response) : null);
+				console.error(`[codex] response.output_text:`, response?.output_text);
 				throw new ServiceError(502, 'OpenAI 응답에서 assistant 메시지를 찾지 못했습니다.');
 			}
 
@@ -371,20 +405,26 @@ export const generateAssistantReply = async ({
 			};
 		}
 
+		for (const item of outputItems) {
+			workingInput.push(item);
+		}
+
 		for (const toolCall of toolCalls) {
-			const result = await executeOpenAiTool(hospitalId, toolCall);
+			console.log(`[codex] executing tool: ${toolCall.name}`);
+			let result: unknown;
+			try {
+				result = await executeOpenAiTool(hospitalId, toolCall);
+				console.log(`[codex] tool result type=${typeof result} length=${typeof result === 'string' ? result.length : JSON.stringify(result).length}`);
+			} catch (err) {
+				console.error(`[codex] tool execution failed:`, err);
+				throw err;
+			}
 			toolTrace.push({
 				name: toolCall.name,
 				arguments: toolCall.argumentsJson,
 				result
 			});
 
-			workingInput.push({
-				type: 'function_call',
-				call_id: toolCall.callId,
-				name: toolCall.name,
-				arguments: toolCall.argumentsJson
-			});
 			workingInput.push({
 				type: 'function_call_output',
 				call_id: toolCall.callId,

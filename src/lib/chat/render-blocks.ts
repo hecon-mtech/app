@@ -11,6 +11,12 @@ export type ChatRenderBlock =
 			title?: string;
 			columns: string[];
 			rows: Array<Record<string, unknown>>;
+	  }
+	| {
+			id: string;
+			type: 'echarts';
+			title?: string;
+			option: Record<string, unknown>;
 	  };
 
 export type AssistantPayload = {

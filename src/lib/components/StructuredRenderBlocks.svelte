@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { ChatRenderBlock } from '$lib/chat/render-blocks';
+	import EChartsBlock from './EChartsBlock.svelte';
 
 	export let blocks: ChatRenderBlock[] = [];
 
@@ -19,6 +20,8 @@
 				{/if}
 				{#if block.type === 'html'}
 					<div class="render-html">{@html block.html}</div>
+				{:else if block.type === 'echarts'}
+					<EChartsBlock option={block.option} />
 				{:else}
 					<div class="render-table-wrap">
 						<table class="render-table">

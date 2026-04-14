@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { parse } from 'csv-parse/sync';
 import { and, eq, gte, inArray, lte, sql } from 'drizzle-orm';
+import { env } from '$env/dynamic/private';
 import { drizzleDb } from '$lib/server/db';
 import { getRepresentativeDrugsByAtcPrefixes } from '$lib/server/db/drug-groups';
 import { inventory } from '$lib/server/db/schema';
@@ -306,6 +307,46 @@ export const getUsageForecastDrugOptions = async ({
 		);
 
 	return { drugIds: Array.from(new Set(usageRows.map((row) => row.drugId))) };
+};
+
+export const runBentomlForecast = async (hospitalId: string) => {
+	const testMode = env.TEST_MODE === 'true';
+	const predictionStartDate = testMode
+		? '2024-11-30'
+		: new Date().toISOString().split('T')[0];
+
+	const bentoUrl = env.BENTOML_URL ?? 'http://localhost:3000';
+
+	let response: Response;
+	try {
+		response = await fetch(`${bentoUrl}/predict`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ request: { hospital_id: hospitalId, prediction_start_date: predictionStartDate } })
+		});
+	} catch (cause) {
+		throw new ServiceError(502, 'BentoML 서비스에 연결할 수 없습니다.');
+	}
+
+	if (!response.ok) {
+		const errorText = await response.text().catch(() => '');
+		throw new ServiceError(502, errorText || 'BentoML 예측 요청에 실패했습니다.');
+	}
+
+	let result: {
+		predicted_period_start: string;
+		predicted_period_end: string;
+		completed: boolean;
+		retrained: boolean;
+		message: string;
+	};
+	try {
+		result = await response.json() as typeof result;
+	} catch {
+		throw new ServiceError(502, 'BentoML 응답을 파싱할 수 없습니다.');
+	}
+
+	return result;
 };
 
 export const refreshNextWeekPrediction = async (hospitalId: string) => {

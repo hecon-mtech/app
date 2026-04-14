@@ -1,0 +1,11 @@
+[
+	{
+		"name": "summarize_recent_patients",
+		"description": "최근 2주간 병원에 내원한 환자를 진료과별로 분석하여 Markdown 표로 반환합니다.",
+		"parameters": {
+			"type": "object",
+			"properties": {},
+			"additionalProperties": false
+		}
+	}
+]

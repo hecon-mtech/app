@@ -17,7 +17,7 @@ export const inventory = pgTable(
 			.notNull(),
 		flow: numeric('flow').notNull(),
 		type: flowTypeEnum('type_').notNull(),
-		stock: numeric('stock').notNull(),
+		stock: numeric('stock'),
 		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 	},
