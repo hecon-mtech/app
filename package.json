@@ -17,6 +17,7 @@
 		"seed:users": "tsx script/seed/seed-users.ts",
 		"seed:all": "npm run db:reset && npm run db:migrate && npm run seed:users && npm run seed:drugs && npm run seed:calendar",
 		"seed": "npm run seed:all",
+		"demo": "tsx script/seed/demo-trim-inventory.ts",
 		"db:generate": "drizzle-kit generate",
 		"db:reset": "tsx script/seed/reset-db.ts",
 		"db:migrate": "drizzle-kit migrate",

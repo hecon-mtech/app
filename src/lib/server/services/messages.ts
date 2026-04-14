@@ -1,14 +1,16 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, sql } from 'drizzle-orm';
 import { drizzleDb } from '$lib/server/db';
-import { messages, messageSessions } from '$lib/server/db/schema/messaging';
+import { messages, messageSessions, sessionSummaries } from '$lib/server/db/schema/messaging';
 import { openAiCredentials } from '$lib/server/db/schema/users';
 import { getOpenAiModelPreset } from '$lib/openai/models';
 import type { AssistantPayload } from '$lib/chat/render-blocks';
 import { ServiceError } from './errors';
-import { generateAssistantReply } from '$lib/openai/agent/codex';
+import { generateAssistantReply, generateConversationSummary } from '$lib/openai/agent/codex';
 import { getOpenAiCredentialById } from '$lib/openai/agent/credentials';
 import { getUserDefaultModelId } from './user-preferences';
+
+const SUMMARIZATION_THRESHOLD = 10;
 
 export type ChatSession = {
 	id: number;
@@ -131,28 +133,51 @@ const getTranscript = async (sessionId: number) => {
 };
 
 const getTranscriptForProvider = async (sessionId: number) => {
-	const rows = await drizzleDb
+	const [existing] = await drizzleDb
+		.select({
+			summary: sessionSummaries.summary,
+			summarizedUpTo: sessionSummaries.summarizedUpTo
+		})
+		.from(sessionSummaries)
+		.where(eq(sessionSummaries.sessionId, sessionId))
+		.limit(1);
+
+	const baseQuery = drizzleDb
 		.select({
 			entity: messages.entity,
 			content: messages.content,
 			payload: messages.payload
 		})
 		.from(messages)
-		.where(eq(messages.sessionId, sessionId))
+		.where(
+			existing
+				? and(eq(messages.sessionId, sessionId), gt(messages.id, existing.summarizedUpTo))
+				: eq(messages.sessionId, sessionId)
+		)
 		.orderBy(asc(messages.createdAt), asc(messages.id));
 
-	return rows
-		.filter(
-			(row): row is { entity: 'user' | 'assistant'; content: string; payload: unknown } =>
-				row.entity === 'user' || row.entity === 'assistant'
-		)
-		.map(
-			(row): PersistedTranscriptMessage => ({
-				role: row.entity,
-				content: row.content,
-				payload: row.payload
-			})
-		);
+	const rows = await baseQuery;
+
+	const transcript: PersistedTranscriptMessage[] = [];
+
+	if (existing) {
+		transcript.push({
+			role: 'assistant',
+			content: `[이전 대화 요약]\n${existing.summary}`,
+			payload: null
+		});
+	}
+
+	for (const row of rows) {
+		if (row.entity !== 'user' && row.entity !== 'assistant') continue;
+		transcript.push({
+			role: row.entity,
+			content: row.content,
+			payload: row.payload
+		});
+	}
+
+	return transcript;
 };
 
 export const listChatSessions = async (hospitalId: string) => {
@@ -239,6 +264,7 @@ export const deleteChatSession = async (hospitalId: string, sessionIdValue: unkn
 	await getOwnedSession(hospitalId, sessionId);
 
 	await drizzleDb.transaction(async (tx) => {
+		await tx.delete(sessionSummaries).where(eq(sessionSummaries.sessionId, sessionId));
 		await tx.delete(messages).where(eq(messages.sessionId, sessionId));
 		await tx
 			.delete(messageSessions)
@@ -249,6 +275,91 @@ export const deleteChatSession = async (hospitalId: string, sessionIdValue: unkn
 		sessionId,
 		message: '대화 세션이 삭제되었습니다.'
 	};
+};
+
+const maybeSummarizeSession = async (
+	sessionId: number,
+	credentialId: number,
+	userId: string,
+	modelId: string,
+	promptCacheKey: string
+) => {
+	const [existing] = await drizzleDb
+		.select({
+			id: sessionSummaries.id,
+			summary: sessionSummaries.summary,
+			summarizedUpTo: sessionSummaries.summarizedUpTo
+		})
+		.from(sessionSummaries)
+		.where(eq(sessionSummaries.sessionId, sessionId))
+		.limit(1);
+
+	const unsummarizedCondition = existing
+		? and(
+				eq(messages.sessionId, sessionId),
+				eq(messages.entity, 'assistant'),
+				gt(messages.id, existing.summarizedUpTo)
+			)
+		: and(eq(messages.sessionId, sessionId), eq(messages.entity, 'assistant'));
+
+	const [{ count }] = await drizzleDb
+		.select({ count: sql<number>`count(*)::int` })
+		.from(messages)
+		.where(unsummarizedCondition);
+
+	if (count < SUMMARIZATION_THRESHOLD) return;
+
+	const recentRows = await drizzleDb
+		.select({
+			id: messages.id,
+			entity: messages.entity,
+			content: messages.content
+		})
+		.from(messages)
+		.where(
+			existing
+				? and(eq(messages.sessionId, sessionId), gt(messages.id, existing.summarizedUpTo))
+				: eq(messages.sessionId, sessionId)
+		)
+		.orderBy(asc(messages.createdAt), asc(messages.id));
+
+	const recentMessages = recentRows
+		.filter((r) => r.entity === 'user' || r.entity === 'assistant')
+		.map((r) => ({ role: r.entity as 'user' | 'assistant', content: r.content }));
+
+	const lastMessageId = recentRows[recentRows.length - 1]?.id;
+	if (!lastMessageId) return;
+
+	try {
+		const summary = await generateConversationSummary({
+			credentialId,
+			userId,
+			modelId,
+			promptCacheKey,
+			previousSummary: existing?.summary ?? null,
+			recentMessages
+		});
+
+		const now = new Date();
+		if (existing) {
+			await drizzleDb
+				.update(sessionSummaries)
+				.set({ summary, summarizedUpTo: lastMessageId, updatedAt: now })
+				.where(eq(sessionSummaries.id, existing.id));
+		} else {
+			await drizzleDb.insert(sessionSummaries).values({
+				sessionId,
+				summary,
+				summarizedUpTo: lastMessageId,
+				createdAt: now,
+				updatedAt: now
+			});
+		}
+
+		console.log(`[summary] session=${sessionId} summarizedUpTo=${lastMessageId}`);
+	} catch (err) {
+		console.error(`[summary] failed for session=${sessionId}:`, err);
+	}
 };
 
 export const sendChatMessage = async (hospitalId: string, payload: unknown) => {
@@ -306,6 +417,15 @@ export const sendChatMessage = async (hospitalId: string, payload: unknown) => {
 			.set({ updatedAt: assistantTime })
 			.where(eq(messageSessions.id, sessionId));
 	});
+
+	// Fire-and-forget: summarize if threshold reached
+	maybeSummarizeSession(
+		sessionId,
+		session.credentialId,
+		hospitalId,
+		session.modelId,
+		session.promptCacheKey
+	).catch(() => {});
 
 	const updatedSession = await getOwnedSession(hospitalId, sessionId);
 	const updatedTranscript = await getTranscript(sessionId);

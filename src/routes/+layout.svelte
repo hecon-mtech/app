@@ -220,7 +220,9 @@
 	};
 
 	const getAlarmFabStyle = () =>
-		alarmFabReady ? `left: ${alarmFabX}px; top: ${alarmFabY}px;` : 'right: 18px; bottom: 18px;';
+		alarmFabReady
+			? `left: ${alarmFabX}px; top: ${alarmFabY}px; visibility: visible;`
+			: 'right: 24px; bottom: 96px; visibility: hidden;';
 
 	const getAlarmPanelStyle = () => {
 		const panelWidth = Math.min(420, Math.max(280, appViewportWidthPx - 36));
@@ -329,21 +331,26 @@
 		alarmIsDragging = false;
 	};
 
-	const handleAlarmClick = async (alarm: unknown) => {
+	const handleDrugInfoToComposer = async (alarm: AlarmItem) => {
 		const orderLink = toOrderAlarmLink(alarm);
 		if (orderLink.action !== 'open-order-modal' || !orderLink.targetDrugId) return;
-		const url = new URL(`${getTenantBasePath()}/chat`, page.url.origin);
-		url.searchParams.set('openOrderDrugId', orderLink.targetDrugId);
-		if (orderLink.targetLabel) {
-			url.searchParams.set('openOrderLabel', orderLink.targetLabel);
+		const drugId = orderLink.targetDrugId;
+		const drugName = orderLink.targetLabel ?? drugId;
+		const appendText = `${drugName} (약품코드: ${drugId}) 재고 현황 분석해줘`;
+
+		if (isDashboard()) {
+			window.dispatchEvent(new CustomEvent('dashboard-append-composer', { detail: { text: appendText } }));
+		} else {
+			const url = new URL(`${getTenantBasePath()}/chat`, page.url.origin);
+			url.searchParams.set('drugComposer', appendText);
+			await goto(`${url.pathname}${url.search}`);
 		}
-		await goto(`${url.pathname}${url.search}`);
 	};
 
 	const handleAlarmCardClick = async (alarm: AlarmItem) => {
 		alarmPanelOpen = false;
 		if (toOrderAlarmLink(alarm).action === 'open-order-modal') {
-			await handleAlarmClick(alarm);
+			await handleDrugInfoToComposer(alarm);
 		}
 	};
 
@@ -578,7 +585,7 @@
 									<span class="status-dot" class:is-warn={alarm.level === 'warn'}></span>
 									<span class="alarm-card-title">{alarm.title}</span>
 								</div>
-								<span class="alarm-card-action">대시보드에서 열기</span>
+								<span class="alarm-card-action">약품 정보 복사하기</span>
 							</div>
 							<div class="alarm-card-preview">{alarm.preview}</div>
 							<div class="alarm-card-detail">{alarm.detail}</div>

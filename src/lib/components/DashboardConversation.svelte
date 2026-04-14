@@ -43,9 +43,8 @@
 	};
 
 	const starterPrompts = [
-		'이번주 재고 리스크를 요약해줘',
-		'알림 버튼에서 어떤 조치를 먼저 봐야 해?',
-		'주문 우선순위를 대화형으로 정리해줘'
+		'한 달 전부터 오늘까지의 환자 정보를 요약해줘',
+		'미래의 재고 관리 리스크 포인트를 정리해줘',
 	];
 
 	const assistantTitle = 'MTECHnician';
@@ -71,6 +70,7 @@
 	let assistantTyping = false;
 	let sendingSessionId: number | null = null;
 	let transcriptRef: HTMLDivElement | null = null;
+	let composerRef: HTMLTextAreaElement | null = null;
 	let chatError = '';
 	let creatingSession = false;
 	let transcriptRequestId = 0;
@@ -420,6 +420,7 @@
 				requestId === transcriptRequestId &&
 				$dashboardConversation.activeSessionId === sessionId
 			) {
+				setDashboardConversationLoading('entries', false);
 				await scrollTranscriptToBottom();
 			}
 		}
@@ -434,9 +435,17 @@
 		await sendMessage(composerValue);
 	};
 
+	const flushComposerIME = () => {
+		if (!composerRef) return;
+		composerRef.blur();
+		composerRef.focus();
+	};
+
 	const handleComposerKeydown = async (event: KeyboardEvent) => {
 		if (event.key === 'Enter' && !event.shiftKey) {
 			event.preventDefault();
+			flushComposerIME();
+			await tick();
 			await sendMessage(composerValue);
 		}
 	};
@@ -600,15 +609,41 @@
 		}
 	}
 
+	const appendToComposer = (text: string) => {
+		const current = composerValue.trimEnd();
+		composerValue = current ? `${current} ${text}` : text;
+		void tick().then(() => {
+			composerRef?.focus();
+		});
+	};
+
+	$: {
+		const drugComposerText = page.url.searchParams.get('drugComposer')?.trim() ?? '';
+		if (drugComposerText && mounted) {
+			appendToComposer(drugComposerText);
+			if (typeof window !== 'undefined') {
+				const nextUrl = new URL(window.location.href);
+				nextUrl.searchParams.delete('drugComposer');
+				window.history.replaceState(window.history.state, '', nextUrl.toString());
+			}
+		}
+	}
+
 	onMount(() => {
 		mounted = true;
 		const onSidebarNewSession = () => {
 			void handleCreateSessionClick();
 		};
+		const onAppendComposer = (event: Event) => {
+			const text = (event as CustomEvent<{ text: string }>).detail?.text;
+			if (text) appendToComposer(text);
+		};
 		window.addEventListener('dashboard-new-session-request', onSidebarNewSession);
+		window.addEventListener('dashboard-append-composer', onAppendComposer);
 		void initializeConversation();
 		return () => {
 			window.removeEventListener('dashboard-new-session-request', onSidebarNewSession);
+			window.removeEventListener('dashboard-append-composer', onAppendComposer);
 			mounted = false;
 			transcriptRequestId += 1;
 		};
@@ -643,6 +678,7 @@
 					<form class="assistant-composer assistant-composer-empty" on:submit={handleComposerSubmit}>
 						<textarea
 							bind:value={composerValue}
+							bind:this={composerRef}
 							class="assistant-input"
 							rows="1"
 							placeholder="운영 질문을 입력하세요. 예: 이번주 재고 리스크를 우선순위대로 정리해줘"
@@ -715,6 +751,7 @@
 			<form class="assistant-composer" on:submit={handleComposerSubmit}>
 				<textarea
 					bind:value={composerValue}
+					bind:this={composerRef}
 					class="assistant-input"
 					rows="1"
 					placeholder="운영 질문을 입력하세요. 예: 이번주 재고 리스크를 우선순위대로 정리해줘"

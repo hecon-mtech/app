@@ -1,5 +1,5 @@
-import { summarizeRecentPatients } from '$lib/server/tools';
-import { summarizeInventoryTool } from '$lib/server/tools/inventory';
+import { summarizeRecentPatients, getCurrentDate } from '$lib/server/tools';
+import { summarizeRecentInventoryTool, inventoryPredictionTool, suggestOrderTool } from '$lib/server/tools/inventory';
 import { searchDrugsTool } from '$lib/server/tools/drugs';
 import { ServiceError } from '$lib/server/services/errors';
 import toolDefs from '../../../../tools.json';
@@ -25,12 +25,20 @@ const EXECUTORS: Record<string, OpenAiToolExecutor> = {
 			{ hospitalId },
 			{ start_date: args.start_date as string, end_date: args.end_date as string }
 		),
-	summarize_inventory: (hospitalId, args) =>
-		summarizeInventoryTool(
+	summarize_recent_inventory: (hospitalId, args) =>
+		summarizeRecentInventoryTool(
 			{ hospitalId },
 			{ start_date: args.start_date as string, end_date: args.end_date as string }
 		),
-	search_drugs: (_hospitalId, args) => searchDrugsTool(String(args.query ?? ''))
+	inventory_prediction: (hospitalId, args) =>
+		inventoryPredictionTool(
+			{ hospitalId },
+			{ drug_code: args.drug_code as string, prediction_start_date: args.prediction_start_date as string }
+		),
+	suggest_order: (hospitalId, args) =>
+		suggestOrderTool({ hospitalId }, { drug_id: args.drug_id as string | undefined }),
+	search_drugs: (_hospitalId, args) => searchDrugsTool(String(args.query ?? '')),
+	get_current_date: () => getCurrentDate()
 };
 
 const OPENAI_TOOL_REGISTRY = toolDefs.map((def) => ({

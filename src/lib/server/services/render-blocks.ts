@@ -1,6 +1,6 @@
 import type { AssistantPayload, ChatRenderBlock } from '$lib/chat/render-blocks';
 import type { PatientSummary } from './patients';
-import type { InventorySummary } from './inventory-summary';
+import type { RecentInventorySummary, InventoryPrediction, OrderSuggestionResult } from './inventory-summary';
 
 const escapeHtml = (value: unknown) =>
 	String(value ?? '')
@@ -157,53 +157,146 @@ const isPatientSummary = (result: Record<string, unknown>): result is PatientSum
 	Array.isArray(result.byDepartment) &&
 	Array.isArray(result.byDate);
 
-const isInventorySummary = (result: Record<string, unknown>): result is InventorySummary =>
+const truncate = (text: string, max: number) =>
+	text.length > max ? text.slice(0, max) + '…' : text;
+
+const isRecentInventory = (result: Record<string, unknown>): result is RecentInventorySummary =>
 	typeof result.period === 'object' &&
 	typeof result.totalDrugs === 'number' &&
-	Array.isArray(result.byDrug) &&
-	Array.isArray(result.byDate);
+	Array.isArray(result.byDrug);
 
-const buildInventoryEChartsBlocks = (result: InventorySummary, index: number): ChatRenderBlock[] => {
-	const blocks: ChatRenderBlock[] = [];
+const isInventoryPrediction = (result: Record<string, unknown>): result is InventoryPrediction =>
+	typeof result.drugCode === 'string' &&
+	typeof result.period === 'object' &&
+	Array.isArray(result.byDateSeries);
 
+const isOrderSuggestionResult = (result: Record<string, unknown>): result is OrderSuggestionResult =>
+	typeof result.predictionStartDate === 'string' &&
+	Array.isArray(result.suggestions);
+
+const buildOrderSuggestionBlock = (result: OrderSuggestionResult, index: number): ChatRenderBlock | null => {
+	if (result.suggestions.length === 0) return null;
+	return {
+		id: `order-suggest-${index}`,
+		type: 'table',
+		title: `발주 제안 — 기준일 ${result.predictionStartDate}`,
+		columns: ['약품명', '향후예측사용량', '권장발주량'],
+		rows: result.suggestions.map((s) => ({
+			약품명: truncate(s.drugName, 20),
+			향후예측사용량: s.futurePredictionSum,
+			권장발주량: s.suggestedOrder
+		}))
+	};
+};
+
+const buildSingleOrderSuggestionBlock = (
+	suggestion: InventoryPrediction['orderSuggestion'],
+	index: number
+): ChatRenderBlock | null => {
+	if (!suggestion) return null;
+	return {
+		id: `inventory-pred-order-${index}`,
+		type: 'table',
+		title: `발주 제안 — ${truncate(suggestion.drugName, 20)} (${suggestion.drugCode})`,
+		columns: ['약품명', '향후예측사용량', '권장발주량'],
+		rows: [
+			{
+				약품명: truncate(suggestion.drugName, 20),
+				향후예측사용량: suggestion.futurePredictionSum,
+				권장발주량: suggestion.suggestedOrder
+			}
+		]
+	};
+};
+
+const buildRecentInventoryBlock = (result: RecentInventorySummary, index: number): ChatRenderBlock => {
+	const periodLabel = `${result.period.start} ~ ${result.period.end}`;
 	const topDrugs = result.byDrug.slice(0, 15);
-	if (topDrugs.length > 0) {
-		blocks.push({
-			id: `inventory-bar-${index}`,
-			type: 'echarts',
-			title: '약품별 사용량 (상위)',
-			option: {
-				tooltip: { trigger: 'axis' },
-				xAxis: {
-					type: 'category',
-					data: topDrugs.map((d) => d.drugName),
-					axisLabel: { rotate: 30 }
+	return {
+		id: `inventory-table-${index}`,
+		type: 'table',
+		title: `약품별 사용량 (상위) — ${periodLabel}`,
+		columns: ['순위', '약품명', '사용량', '현재고'],
+		rows: topDrugs.map((d, i) => ({
+			순위: i + 1,
+			약품명: truncate(d.drugName, 20),
+			사용량: d.totalFlow,
+			현재고: d.latestStock ?? '-'
+		}))
+	};
+};
+
+const buildInventoryPredictionBlock = (result: InventoryPrediction, index: number): ChatRenderBlock => {
+	const periodLabel = `${result.period.start} ~ ${result.period.end}`;
+	const round = (v: number | null) => (v != null ? Math.round(v) : null);
+	const dates = result.byDateSeries.map((d) => d.date);
+	const actual = result.byDateSeries.map((d) => round(d.actual));
+	const prediction = result.byDateSeries.map((d) => round(d.prediction));
+	const predLower = result.byDateSeries.map((d) => round(d.predictionLower));
+	const bandDiff = result.byDateSeries.map((d) =>
+		d.predictionUpper != null && d.predictionLower != null
+			? Math.round(d.predictionUpper) - Math.round(d.predictionLower)
+			: null
+	);
+
+	return {
+		id: `inventory-pred-${index}`,
+		type: 'echarts',
+		title: `일별 재고 추이 — ${truncate(result.drugName, 20)} (${result.drugCode}) — ${periodLabel}`,
+		option: {
+			tooltip: { trigger: 'axis' },
+			legend: {
+				data: ['실제 사용량', '예측', '예측 밴드'],
+				selected: { '예측 밴드': false }
+			},
+			xAxis: {
+				type: 'category',
+				data: dates,
+				axisLabel: { rotate: 30 }
+			},
+			yAxis: { type: 'value' },
+			series: [
+				{
+					name: '예측 하한',
+					type: 'line',
+					data: predLower,
+					stack: 'pred-band',
+					symbol: 'none',
+					lineStyle: { opacity: 0 },
+					areaStyle: { color: 'transparent' },
+					tooltip: { show: false }
 				},
-				yAxis: { type: 'value' },
-				series: [
-					{ name: '사용량', type: 'bar', data: topDrugs.map((d) => d.totalFlow) }
-				]
-			}
-		});
-	}
-
-	if (result.byDate.length > 1) {
-		blocks.push({
-			id: `inventory-line-${index}`,
-			type: 'echarts',
-			title: '일별 재고 사용 추이',
-			option: {
-				tooltip: { trigger: 'axis' },
-				xAxis: { type: 'category', data: result.byDate.map((d) => d.date) },
-				yAxis: { type: 'value' },
-				series: [
-					{ name: '총 사용량', type: 'line', data: result.byDate.map((d) => d.totalFlow), smooth: true }
-				]
-			}
-		});
-	}
-
-	return blocks;
+				{
+					name: '예측 밴드',
+					type: 'line',
+					data: bandDiff,
+					stack: 'pred-band',
+					symbol: 'none',
+					lineStyle: { opacity: 0 },
+					areaStyle: { color: 'rgba(135,206,235,0.35)' }
+				},
+				{
+					name: '예측',
+					type: 'line',
+					data: prediction,
+					symbol: 'none',
+					smooth: true,
+					lineStyle: { color: '#2563eb', width: 2, type: 'dashed' },
+					itemStyle: { color: '#2563eb' }
+				},
+				{
+					name: '실제 사용량',
+					type: 'line',
+					data: actual,
+					symbol: 'circle',
+					symbolSize: 5,
+					smooth: false,
+					lineStyle: { color: '#ef4444', width: 2.5 },
+					itemStyle: { color: '#ef4444' }
+				}
+			]
+		}
+	};
 };
 
 export const buildRenderBlocksFromToolTrace = (toolTrace: Array<Record<string, unknown>>): ChatRenderBlock[] => {
@@ -244,8 +337,21 @@ export const buildRenderBlocksFromToolTrace = (toolTrace: Array<Record<string, u
 			continue;
 		}
 
-		if (name === 'summarize_inventory' && isInventorySummary(result)) {
-			blocks.push(...buildInventoryEChartsBlocks(result, index));
+		if (name === 'summarize_recent_inventory' && isRecentInventory(result)) {
+			blocks.push(buildRecentInventoryBlock(result, index));
+			continue;
+		}
+
+		if (name === 'inventory_prediction' && isInventoryPrediction(result)) {
+			blocks.push(buildInventoryPredictionBlock(result, index));
+			const orderBlock = buildSingleOrderSuggestionBlock(result.orderSuggestion, index);
+			if (orderBlock) blocks.push(orderBlock);
+			continue;
+		}
+
+		if (name === 'suggest_order' && isOrderSuggestionResult(result)) {
+			const orderBlock = buildOrderSuggestionBlock(result, index);
+			if (orderBlock) blocks.push(orderBlock);
 			continue;
 		}
 

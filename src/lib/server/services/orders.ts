@@ -2,6 +2,7 @@ import type { OrderItem } from '$lib/server/db';
 import { drizzleDb } from '$lib/server/db';
 import { auctionBids, auctionRegInventory, configurations, drugs, inventory } from '$lib/server/db/schema';
 import { and, desc, eq, gt, gte, inArray, lte, sql } from 'drizzle-orm';
+import { env } from '$env/dynamic/private';
 import { ServiceError } from './errors';
 
 export type AlarmItem = {
@@ -404,61 +405,167 @@ export const getCurrentAuctionStatus = async (hospitalId: string, requestedRange
 };
 
 export const getAlarmItems = async (hospitalId: string) => {
-	const orders = await getRecentOrders(hospitalId);
 	const now = new Date();
-	const items: AlarmItem[] = [];
+	const testMode = env.TEST_MODE === 'true';
+	const today = testMode ? new Date('2024-11-24') : now;
+	const todayStr = toDateStr(today);
+	const tomorrowStr = toDateStr(addDays(today, 1));
+	const twoWeeksEndStr = toDateStr(addDays(today, 14));
 
-	const alarmRows = orders.filter((row) => {
-		const currentStock = toNumeric(row.currentStock);
-		const nextWeekBest = toNumeric(row.nextWeekBest);
-		const nextWeekWorst = toNumeric(row.nextWeekWorst);
-		return (
-			(currentStock !== null && currentStock <= 0) ||
-			(nextWeekBest !== null && nextWeekBest <= 0) ||
-			(nextWeekWorst !== null && nextWeekWorst <= 0)
-		);
-	});
+	// Step 1: Get all drugs that have prediction data in the next 2 weeks
+	const forecastRows = await drizzleDb
+		.select({
+			drugId: inventory.drugId,
+			dateStr: inventory.dateStr,
+			type: inventory.type,
+			dailyFlow: sql<string>`sum(${inventory.flow})`
+		})
+		.from(inventory)
+		.where(
+			and(
+				eq(inventory.hospitalId, hospitalId),
+				inArray(inventory.type, ['prediction', 'prediction_upper', 'prediction_lower']),
+				gte(inventory.dateStr, tomorrowStr),
+				lte(inventory.dateStr, twoWeeksEndStr)
+			)
+		)
+		.groupBy(inventory.drugId, inventory.dateStr, inventory.type);
 
-	const alarmDrugIds = Array.from(new Set(alarmRows.map((row) => row.drugId)));
-	const activeOrderRows =
-		alarmDrugIds.length > 0
-			? await drizzleDb
-					.select({ drugId: auctionRegInventory.drugId })
-					.from(auctionRegInventory)
-					.where(
-						and(
-							eq(auctionRegInventory.hospitalId, hospitalId),
-							inArray(auctionRegInventory.drugId, alarmDrugIds),
-							gt(auctionRegInventory.expireAt, now)
-						)
-					)
-			: [];
+	if (forecastRows.length === 0) {
+		return {
+			items: [
+				{
+					id: 'system-status',
+					title: '시스템 상태',
+					preview: `DB 동기화 정상 (${toMinuteLabel(now)} 기준)`,
+					detail: `병원 ${hospitalId} — 향후 2주 예측 데이터가 없습니다.`,
+					level: 'ok' as const
+				}
+			]
+		};
+	}
 
-	const activeDrugIds = new Set(activeOrderRows.map((row) => row.drugId));
-
-	for (const row of alarmRows) {
-		if (activeDrugIds.has(row.drugId)) {
-			continue;
+	// Aggregate forecast sums per drug
+	const forecastMap = new Map<string, { prediction: number; upper: number; lower: number }>();
+	for (const row of forecastRows) {
+		if (!forecastMap.has(row.drugId)) {
+			forecastMap.set(row.drugId, { prediction: 0, upper: 0, lower: 0 });
 		}
+		const entry = forecastMap.get(row.drugId)!;
+		const val = toNumber(row.dailyFlow);
+		if (row.type === 'prediction') entry.prediction += val;
+		else if (row.type === 'prediction_upper') entry.upper += val;
+		else if (row.type === 'prediction_lower') entry.lower += val;
+	}
 
-		items.push({
-			id: `stock-risk-${row.drugId}`,
-			title: '재고/예측 경보',
-			preview: `${row.item} (현재 ${row.currentStock}, best ${row.nextWeekBest}, worst ${row.nextWeekWorst})`,
-			detail: `${row.item}의 재고 또는 다음주 재고 예상이 0 이하입니다. 눌러서 상세 주문 모달을 열고 즉시 주문을 등록하세요.`,
-			level: 'warn',
-			action: 'open-order-modal',
-			targetDrugId: row.drugId,
-			targetLabel: row.item
+	const drugIds = Array.from(forecastMap.keys());
+
+	// Step 2: For each drug, get most recent stock (latest date_str with stock data)
+	const stockRows = await drizzleDb
+		.select({
+			drugId: inventory.drugId,
+			drugName: drugs.drugName,
+			latestDate: sql<string>`max(${inventory.dateStr})`,
+			stock: sql<string>`(
+				SELECT sum(i2.stock) FROM inventory i2
+				WHERE i2.hospital_id = ${inventory.hospitalId}
+				  AND i2.drug_id = ${inventory.drugId}
+				  AND i2.type_ = 'actual'
+				  AND i2.date_str = max(${inventory.dateStr})
+			)`
+		})
+		.from(inventory)
+		.innerJoin(drugs, eq(inventory.drugId, drugs.drugCode))
+		.where(
+			and(
+				eq(inventory.hospitalId, hospitalId),
+				eq(inventory.type, 'actual'),
+				inArray(inventory.drugId, drugIds),
+				lte(inventory.dateStr, todayStr)
+			)
+		)
+		.groupBy(inventory.drugId, drugs.drugName, inventory.hospitalId);
+
+	const stockMap = new Map<string, { drugName: string; stock: number }>();
+	for (const row of stockRows) {
+		stockMap.set(row.drugId, {
+			drugName: row.drugName,
+			stock: toNumber(row.stock)
 		});
 	}
+
+	// Skip drugs that already have active auction orders
+	const activeOrderRows = drugIds.length > 0
+		? await drizzleDb
+				.select({ drugId: auctionRegInventory.drugId })
+				.from(auctionRegInventory)
+				.where(
+					and(
+						eq(auctionRegInventory.hospitalId, hospitalId),
+						inArray(auctionRegInventory.drugId, drugIds),
+						gt(auctionRegInventory.expireAt, now)
+					)
+				)
+		: [];
+	const activeDrugIds = new Set(activeOrderRows.map((row) => row.drugId));
+
+	// Also need drug names for drugs that have predictions but no stock rows
+	const missingNameIds = drugIds.filter((id) => !stockMap.has(id));
+	if (missingNameIds.length > 0) {
+		const nameRows = await drizzleDb
+			.select({ drugCode: drugs.drugCode, drugName: drugs.drugName })
+			.from(drugs)
+			.where(inArray(drugs.drugCode, missingNameIds));
+		for (const row of nameRows) {
+			stockMap.set(row.drugCode, { drugName: row.drugName, stock: 0 });
+		}
+	}
+
+	const items: AlarmItem[] = [];
+
+	for (const [drugId, forecast] of forecastMap) {
+		if (activeDrugIds.has(drugId)) continue;
+
+		const stockEntry = stockMap.get(drugId);
+		const stock = stockEntry?.stock ?? 0;
+		const drugName = stockEntry?.drugName ?? drugId;
+
+		let level: 'info' | 'warn' | null = null;
+		let previewSuffix = '';
+
+		if (stock < forecast.lower) {
+			level = 'warn';
+			previewSuffix = `현재고 ${formatStockInteger(stock)} < 최소예측사용 ${formatStockInteger(forecast.lower)}`;
+		} else if (stock < forecast.prediction) {
+			level = 'warn';
+			previewSuffix = `현재고 ${formatStockInteger(stock)} < 예측사용 ${formatStockInteger(forecast.prediction)}`;
+		} else if (stock < forecast.upper) {
+			level = 'info';
+			previewSuffix = `현재고 ${formatStockInteger(stock)} < 최대예측사용 ${formatStockInteger(forecast.upper)}`;
+		}
+
+		if (!level) continue;
+
+		items.push({
+			id: `stock-risk-${drugId}`,
+			title: level === 'warn' ? '재고 경보' : '재고 주의',
+			preview: `${drugName} — ${previewSuffix}`,
+			detail: `${drugName}의 현재고(${formatStockInteger(stock)})가 향후 2주 예측 사용량(예측: ${formatStockInteger(forecast.prediction)}, 상한: ${formatStockInteger(forecast.upper)}, 하한: ${formatStockInteger(forecast.lower)})보다 낮습니다.`,
+			level,
+			action: 'open-order-modal',
+			targetDrugId: drugId,
+			targetLabel: drugName
+		});
+	}
+
+	items.sort((a, b) => (a.level === 'warn' ? 0 : 1) - (b.level === 'warn' ? 0 : 1));
 
 	items.push(
 		{
 			id: 'system-status',
 			title: '시스템 상태',
 			preview: `DB 동기화 정상 (${toMinuteLabel(now)} 기준)`,
-			detail: `병원 ${hospitalId} 데이터 기준으로 ${toMinuteLabel(now)}에 상태를 갱신했습니다.`,
+			detail: `병원 ${hospitalId} 데이터 기준으로 ${toMinuteLabel(now)}에 상태를 갱신했습니다. 기준일: ${todayStr}`,
 			level: 'ok'
 		},
 		{

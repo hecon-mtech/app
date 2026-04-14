@@ -45,3 +45,18 @@ export const messages = pgTable(
 		sessionCreatedAtIdx: index('messages_session_created_idx').on(table.sessionId, table.createdAt)
 	})
 );
+
+export const sessionSummaries = pgTable(
+	'session_summaries',
+	{
+		id: serial('id').primaryKey(),
+		sessionId: integer('session_id')
+			.references(() => messageSessions.id)
+			.notNull()
+			.unique(),
+		summary: text('summary').notNull(),
+		summarizedUpTo: integer('summarized_up_to').notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+	}
+);

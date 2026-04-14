@@ -349,6 +349,62 @@ const runResponsesRequest = async (
 	return parseSseResponse(response);
 };
 
+const SUMMARIZATION_PROMPT = [
+	'다음은 병원 운영 어시스턴트 대화입니다. 아래 형식으로 요약하세요.',
+	'',
+	'[맥락] 사용자의 주요 목표와 현재 상황',
+	'[발견사항] 도구 호출로 확인된 핵심 데이터 (약품코드, 날짜, 수치 포함)',
+	'[결정/조치] 내린 결정과 실행된 조치',
+	'[미결사항] 아직 해결되지 않은 질문이나 다음 단계',
+	'',
+	'이전 요약이 있으면 새 대화 내용을 통합하여 하나의 요약으로 만드세요.',
+	'인사말이나 불필요한 내용은 제외하세요.'
+].join('\n');
+
+export const generateConversationSummary = async ({
+	credentialId,
+	userId,
+	modelId,
+	promptCacheKey,
+	previousSummary,
+	recentMessages
+}: {
+	credentialId: number;
+	userId: string;
+	modelId: string;
+	promptCacheKey: string;
+	previousSummary: string | null;
+	recentMessages: Array<{ role: 'user' | 'assistant'; content: string }>;
+}): Promise<string> => {
+	const credential = await getUsableOpenAiCredential(userId, credentialId);
+
+	const conversationBlock = recentMessages
+		.map((m) => `[${m.role}] ${m.content}`)
+		.join('\n\n');
+
+	const userContent = previousSummary
+		? `## 이전 요약\n${previousSummary}\n\n## 새 대화\n${conversationBlock}`
+		: `## 대화\n${conversationBlock}`;
+
+	const input = [
+		{ role: 'user', content: `${SUMMARIZATION_PROMPT}\n\n${userContent}` }
+	];
+
+	const { response, streamedText, collectedOutputItems } = await runResponsesRequest(
+		credential,
+		modelId,
+		promptCacheKey,
+		input
+	);
+
+	const text = parseAssistantText(response, collectedOutputItems, streamedText);
+	if (!text) {
+		throw new ServiceError(502, '요약 생성에 실패했습니다.');
+	}
+
+	return text;
+};
+
 export const generateAssistantReply = async ({
 	userId,
 	hospitalId,
