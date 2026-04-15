@@ -97,7 +97,7 @@
 				authorizeUrl: buildAuthorizeUrl(state, codeChallenge)
 			};
 			persistFlow(pendingFlow);
-			window.open(pendingFlow.authorizeUrl, '_blank', 'noopener,noreferrer');
+			window.location.href = pendingFlow.authorizeUrl;
 		} catch (error) {
 			feedback = {
 				tone: 'error',

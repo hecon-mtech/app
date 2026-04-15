@@ -25,6 +25,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	const isRootRoute = pathname === '/';
 	const isApiRoute = pathname.startsWith('/api');
 	const isLogoutRoute = pathname === '/logout';
+	const isAuthCallback = pathname.startsWith('/auth/callback');
 
 	if (isApiRoute && !isAuthenticated) {
 		return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -36,7 +37,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 		});
 	}
 
-	if (!isAuthenticated && !isLoginRoute && !isLogoutRoute) {
+	if (!isAuthenticated && !isLoginRoute && !isLogoutRoute && !isAuthCallback) {
 		throw redirect(303, '/login');
 	}
 

@@ -233,49 +233,50 @@
 
 	.drug-menu {
 		position: absolute;
-		top: calc(100% + 8px);
+		top: calc(100% + 6px);
 		left: 0;
 		right: 0;
 		max-height: 220px;
-		overflow: auto;
-		padding: 8px;
-		border-radius: 16px;
+		overflow-y: auto;
+		padding: 0;
+		border-radius: 10px;
 		background: rgba(255, 255, 255, 0.98);
-		border: 1px solid rgba(255, 255, 255, 0.85);
+		border: 1px solid rgba(0, 0, 0, 0.08);
 		box-shadow: var(--shadow-glass);
-		z-index: 20;
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
+		z-index: 100;
 	}
 
 	.drug-option {
 		display: flex;
-		align-items: baseline;
+		align-items: center;
 		justify-content: space-between;
 		gap: 10px;
 		width: 100%;
 		border: none;
-		padding: 10px 12px;
-		border-radius: 12px;
-		background: rgba(255, 255, 255, 0.7);
+		border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+		padding: 8px 12px;
+		background: transparent;
 		cursor: pointer;
 		font-family: inherit;
 	}
 
+	.drug-option:last-child {
+		border-bottom: none;
+	}
+
 	.drug-option.selected {
-		background: rgba(87, 183, 196, 0.2);
+		background: rgba(87, 183, 196, 0.15);
 	}
 
 	.drug-option.highlighted {
-		outline: 1px solid rgba(87, 183, 196, 0.45);
-		background: rgba(87, 183, 196, 0.1);
+		background: rgba(87, 183, 196, 0.08);
 	}
 
 	.drug-option-name {
 		font-size: 0.85rem;
 		font-weight: 600;
 		color: var(--ink);
+		line-height: 1.4;
 		flex: 1 1 auto;
 		min-width: 0;
 		overflow: hidden;
@@ -286,6 +287,7 @@
 
 	.drug-option-id {
 		font-size: 0.7rem;
+		line-height: 1.4;
 		color: var(--muted);
 		flex: 0 0 auto;
 	}

@@ -2,7 +2,7 @@ import type { OrderItem } from '$lib/server/db';
 import { drizzleDb } from '$lib/server/db';
 import { auctionBids, auctionRegInventory, configurations, drugs, inventory } from '$lib/server/db/schema';
 import { and, desc, eq, gt, gte, inArray, lte, sql } from 'drizzle-orm';
-import { env } from '$env/dynamic/private';
+import { getToday } from '$lib/server/today';
 import { ServiceError } from './errors';
 
 export type AlarmItem = {
@@ -406,8 +406,7 @@ export const getCurrentAuctionStatus = async (hospitalId: string, requestedRange
 
 export const getAlarmItems = async (hospitalId: string) => {
 	const now = new Date();
-	const testMode = env.TEST_MODE === 'true';
-	const today = testMode ? new Date('2024-11-24') : now;
+	const today = getToday();
 	const todayStr = toDateStr(today);
 	const tomorrowStr = toDateStr(addDays(today, 1));
 	const twoWeeksEndStr = toDateStr(addDays(today, 14));

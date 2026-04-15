@@ -1,4 +1,4 @@
-import { env } from '$env/dynamic/private';
+import { getToday } from '$lib/server/today';
 
 const DAY_NAMES = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
 
@@ -10,8 +10,7 @@ const toDateStr = (date: Date) => {
 };
 
 export const getCurrentDate = () => {
-	const testMode = env.TEST_MODE === 'true';
-	const today = testMode ? new Date('2024-11-24') : new Date();
+	const today = getToday();
 	today.setHours(0, 0, 0, 0);
 
 	const dayOfWeek = today.getDay();

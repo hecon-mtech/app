@@ -10,16 +10,21 @@
 		selectDashboardConversationSession
 	} from '$lib/stores/dashboardConversation';
 	import { sidebarCollapsed, initSidebarStore } from '$lib/stores/sidebar';
+	import { initToday } from '$lib/stores/today';
 	import ButtonWithMenu from '$lib/components/ButtonWithMenu.svelte';
 
-	let { children } = $props();
+	let { children, data } = $props();
+
+	initToday(data.today);
 
 	const getTenantBasePath = () => '/hospital';
 	const profileHref = () => `${getTenantBasePath()}/profile`;
+	const dashboardHref = () => `${getTenantBasePath()}/dashboard`;
 	const settingsHref = () => `${getTenantBasePath()}/settings`;
 
 	const isLogin = () => page.url.pathname === '/login';
 	const isProfile = () => page.url.pathname === profileHref();
+	const isDashboardPage = () => page.url.pathname === dashboardHref();
 	const isSettings = () => page.url.pathname === settingsHref();
 
 	const pollIntervalMs = 60_000;
@@ -446,6 +451,15 @@
 							title="프로필"
 						>
 							<span class="material-symbols-outlined">account_circle</span>
+						</a>
+						<a
+							class="sidebar-utility-button"
+							class:is-active={isDashboardPage()}
+							href={dashboardHref()}
+							aria-label="대시보드"
+							title="대시보드"
+						>
+							<span class="material-symbols-outlined">dashboard</span>
 						</a>
 						<a
 							class="sidebar-utility-button"

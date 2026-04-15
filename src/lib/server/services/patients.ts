@@ -4,10 +4,10 @@ import { asyncBufferFromFile, parquetReadObjects, type AsyncBuffer } from 'hypar
 import { parse } from 'csv-parse/sync';
 import { and, eq, gte, lte } from 'drizzle-orm';
 import * as XLSX from 'xlsx';
-import { env } from '$env/dynamic/private';
 import { drizzleDb } from '$lib/server/db';
 import { getRepresentativeDrugsByAtcPrefixes } from '$lib/server/db/drug-groups';
 import { inventory, patients } from '$lib/server/db/schema';
+import { getToday } from '$lib/server/today';
 import { ServiceError } from './errors';
 
 type PatientSex = typeof patients.$inferInsert.sex;
@@ -325,7 +325,6 @@ export const summarizeRecentPatients = async (
 	startDate?: string,
 	endDate?: string
 ): Promise<PatientSummary> => {
-	const testMode = env.TEST_MODE === 'true';
 	let startStr: string;
 	let endStr: string;
 
@@ -336,7 +335,7 @@ export const summarizeRecentPatients = async (
 		startStr = startDate;
 		endStr = startDate;
 	} else {
-		const anchor = testMode ? new Date('2024-11-30') : new Date();
+		const anchor = getToday();
 		endStr = toDateStr(anchor);
 		const startAnchor = new Date(anchor);
 		startAnchor.setDate(startAnchor.getDate() - 13);

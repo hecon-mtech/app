@@ -1,8 +1,8 @@
 import { and, eq, gte, lte, asc, inArray } from 'drizzle-orm';
-import { env } from '$env/dynamic/private';
 import { drizzleDb } from '$lib/server/db';
 import { inventory } from '$lib/server/db/schema/inventory';
 import { drugs } from '$lib/server/db/schema/catalog';
+import { getToday } from '$lib/server/today';
 
 export type RecentInventorySummary = {
 	period: { start: string; end: string };
@@ -49,7 +49,7 @@ const toDateStr = (value: Date) => {
 	return `${year}-${month}-${day}`;
 };
 
-const testAnchor = () => (env.TEST_MODE === 'true' ? new Date('2024-11-30') : new Date());
+const testAnchor = () => getToday();
 
 /** Historical actual usage grouped by drug. */
 export const summarizeRecentInventory = async (

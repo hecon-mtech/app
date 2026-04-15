@@ -6,6 +6,7 @@ import { env } from '$env/dynamic/private';
 import { drizzleDb } from '$lib/server/db';
 import { getRepresentativeDrugsByAtcPrefixes } from '$lib/server/db/drug-groups';
 import { inventory } from '$lib/server/db/schema';
+import { getTodayStr } from '$lib/server/today';
 import { ServiceError } from './errors';
 
 const NEXT_WEEK_START = '2024-12-08';
@@ -272,7 +273,9 @@ export const getUsageForecast = async ({
 
 	return {
 		labels,
-		actual: labels.map((label) => actualMap.get(label) ?? null),
+		actual: labels.map((label) =>
+			actualEndStr && label <= actualEndStr ? (actualMap.get(label) ?? 0) : null
+		),
 		prediction: labels.map((label) => predictionMap.get(label) ?? null),
 		upper: labels.map((label) => upperMap.get(label) ?? null),
 		lower: labels.map((label) => lowerMap.get(label) ?? null)
@@ -310,10 +313,7 @@ export const getUsageForecastDrugOptions = async ({
 };
 
 export const runBentomlForecast = async (hospitalId: string) => {
-	const testMode = env.TEST_MODE === 'true';
-	const predictionStartDate = testMode
-		? '2024-11-24' // Last week + Sunday of November
-		: new Date().toISOString().split('T')[0];
+	const predictionStartDate = getTodayStr();
 
 	const bentoUrl = env.BENTOML_URL ?? 'http://localhost:3000';
 
